@@ -64,17 +64,23 @@ export async function GET(req) {
 
     // Dynamic Coaching Diagnostics
     const coachingTips = [];
-    if (totalTrades > 20) {
+    if (totalTrades > 50) {
+      coachingTips.push({
+        type: 'WARNING',
+        title: 'Peringatan Overtrading',
+        message: 'Anda membuka terlalu banyak transaksi dalam waktu singkat. Kurangi frekuensi scan dan fokus hanya pada setup Grade A+.'
+      });
+    } else if (totalTrades > 20) {
       coachingTips.push({
         type: 'HEALTHY',
         title: 'Disiplin Frekuensi Transaksi',
         message: 'Frekuensi transaksi Anda terkendali dengan baik, mencegah bias emosional akibat overtrading.'
       });
-    } else if (totalTrades > 50) {
+    } else {
       coachingTips.push({
-        type: 'WARNING',
-        title: 'Peringatan Overtrading',
-        message: 'Anda membuka terlalu banyak transaksi dalam waktu singkat. Kurangi frekuensi scan dan fokus hanya pada setup Grade A+.'
+        type: 'HEALTHY',
+        title: 'Mulai Pengumpulan Data',
+        message: 'Lakukan lebih banyak pemindaian pasar untuk membangun data performa personal yang komprehensif.'
       });
     }
 

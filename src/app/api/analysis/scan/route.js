@@ -694,83 +694,102 @@ export async function POST(req) {
     const expMinutes = Math.round(tfMin * (latestAtr / latestPrice * 100) * 3);
     const expirationTime = new Date(Date.now() + Math.max(30, expMinutes) * 60000);
 
-    // 10. Store Analysis and Scores to DB
-    const analysis = await prisma.analysis.create({
-      data: {
-        userId: authUser.userId,
-        tenantId: authUser.tenantId,
-        strategyVerId: version.id,
-        asset: detectedTicker,
-        timeframe: detectedTimeframe,
-        sourceType,
-        signal: isShadowMode ? originalSignal : signal, // Store original signal in DB for shadow tracking
-        grade: finalGrade,
-        confidence: finalConfidence,
-        marketRegime: marketRegime + " - " + ev.status,
-        marketQuality: Math.round(finalConfidence * 0.9),
-        liquidityRisk: isNoise ? 'NOISE_ZONE' : slippage ? slippage.riskScore : 'LOW',
-        entryPrice,
-        stopLoss,
-        tp1,
-        tp2,
-        tp3,
-        riskReward: targetRR,
-        weightsSnapshot: weights,
-        parametersSnapshot: params,
-        signalVersionTag: version.versionString,
-        aiReasons: visualObservations 
-          ? `AI Observations: ${visualObservations.keyObservations?.join('. ')} | EV: ${ev.message}` 
-          : `Kuantitatif: ${regimeData.description} | EV: ${ev.message}`,
-        aiRisks: visualObservations 
-          ? `Slippage: ${slippage?.riskScore || 'LOW'}, ${visualObservations.criticalRisks?.join('. ')}` 
-          : `Slippage: ${slippage?.riskScore || 'LOW'}, ATR Vol Ratio: ${(atrVolatilityRatio*100).toFixed(2)}%`
-      }
-    });
-
-    // Write risk decision log if evaluated
-    if (riskEvaluationResult) {
-      await logRiskDecision(prisma, analysis.id, detectedTicker, riskEvaluationResult);
-    }
-
-    // Write Component Scores
-    await Promise.all(scores.map(s => 
-      prisma.analysisScoreComponent.create({
-        data: {
-          analysisId: analysis.id,
-          componentName: s.name,
-          weight: s.weight,
-          rawScore: s.rawScore,
-          weightedScore: s.weightedScore,
-          isCriteriaMet: s.met
-        }
-      })
-    ));
-
-    // Save compressed ReplaySnapshot JSON
+    // 10. Store Analysis, Scores, and Replay Snapshots to DB inside a robust transaction for atomicity
     const indicatorMap = { emaFast, emaSlow, rsi, macd, atr, adx, volumeSMA, rvol, srZones, fib, liquidityClusters, liquiditySweeps };
-    const storagePath = await saveReplaySnapshot(analysis.id, candles, indicatorMap);
-    
-    await prisma.replaySnapshot.create({
-      data: {
-        analysisId: analysis.id,
-        storagePath,
-        compressed: true
+    const resolvedSignal = isShadowMode ? originalSignal : signal;
+
+    const transactionResult = await prisma.$transaction(async (tx) => {
+      // 10.1 Create Analysis record
+      const analysisRecord = await tx.analysis.create({
+        data: {
+          userId: authUser.userId,
+          tenantId: authUser.tenantId,
+          strategyVerId: version.id,
+          asset: detectedTicker,
+          timeframe: detectedTimeframe,
+          sourceType,
+          signal: isShadowMode ? originalSignal : signal, // Store original signal in DB for shadow tracking
+          grade: finalGrade,
+          confidence: finalConfidence,
+          marketRegime: marketRegime + " - " + ev.status,
+          marketQuality: Math.round(finalConfidence * 0.9),
+          liquidityRisk: isNoise ? 'NOISE_ZONE' : slippage ? slippage.riskScore : 'LOW',
+          entryPrice,
+          stopLoss,
+          tp1,
+          tp2,
+          tp3,
+          riskReward: targetRR,
+          weightsSnapshot: weights,
+          parametersSnapshot: params,
+          signalVersionTag: version.versionString,
+          positionSizeScale: finalPositionSize, // Set position sizing scale calculated by risk budget engine
+          aiReasons: visualObservations 
+            ? `AI Observations: ${visualObservations.keyObservations?.join('. ')} | EV: ${ev.message}` 
+            : `Kuantitatif: ${regimeData.description} | EV: ${ev.message}`,
+          aiRisks: visualObservations 
+            ? `Slippage: ${slippage?.riskScore || 'LOW'}, ${visualObservations.criticalRisks?.join('. ')}` 
+            : `Slippage: ${slippage?.riskScore || 'LOW'}, ATR Vol Ratio: ${(atrVolatilityRatio*100).toFixed(2)}%`
+        }
+      });
+
+      // 10.2 Write risk decision log if evaluated
+      if (riskEvaluationResult) {
+        await tx.riskDecisionLog.create({
+          data: {
+            analysisId: analysisRecord.id,
+            symbol: detectedTicker,
+            requestedRiskPct: riskEvaluationResult.requestedRiskPct,
+            remainingPortfolioRiskPct: riskEvaluationResult.remainingPortfolioRiskPct,
+            approvedRiskPct: riskEvaluationResult.approvedRiskPct,
+            action: riskEvaluationResult.action,
+            reason: riskEvaluationResult.reason
+          }
+        });
       }
+
+      // 10.3 Write Component Scores
+      await Promise.all(scores.map(s => 
+        tx.analysisScoreComponent.create({
+          data: {
+            analysisId: analysisRecord.id,
+            componentName: s.name,
+            weight: s.weight,
+            rawScore: s.rawScore,
+            weightedScore: s.weightedScore,
+            isCriteriaMet: s.met
+          }
+        })
+      ));
+
+      // 10.4 Save ReplaySnapshot
+      const storagePath = await saveReplaySnapshot(analysisRecord.id, candles, indicatorMap);
+      await tx.replaySnapshot.create({
+        data: {
+          analysisId: analysisRecord.id,
+          storagePath,
+          compressed: true
+        }
+      });
+
+      // 10.5 Save Signal Lifecycle
+      const lifecycleRecord = await tx.signalLifecycle.create({
+        data: {
+          analysisId: analysisRecord.id,
+          currentState: resolvedSignal === 'NO TRADE' ? 'CLOSED' : 'PENDING',
+          expirationTime,
+          expirationCandleCount: Math.ceil(expMinutes / tfMin),
+          predictedRR: targetRR,
+          expectedHoldingTime: expMinutes / 60, // in hours
+          positionSizeScale: finalPositionSize, // Set scale in lifecycle for robot execution
+          decayHistory: JSON.stringify([{ time: new Date().toISOString(), confidence: finalConfidence }])
+        }
+      });
+
+      return { analysis: analysisRecord, lifecycle: lifecycleRecord };
     });
 
-    // Save lifecycle
-    const resolvedSignal = isShadowMode ? originalSignal : signal;
-    await prisma.signalLifecycle.create({
-      data: {
-        analysisId: analysis.id,
-        currentState: resolvedSignal === 'NO TRADE' ? 'CLOSED' : 'PENDING',
-        expirationTime,
-        expirationCandleCount: Math.ceil(expMinutes / tfMin),
-        predictedRR: targetRR,
-        expectedHoldingTime: expMinutes / 60, // in hours
-        decayHistory: JSON.stringify([{ time: new Date().toISOString(), confidence: finalConfidence }])
-      }
-    });
+    const analysis = transactionResult.analysis;
 
     // Emit event hook
     tradeEvents.emit(EVENTS.SIGNAL_CREATED, { analysis, signal });

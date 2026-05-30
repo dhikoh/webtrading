@@ -7,9 +7,14 @@
 export async function fetchBinanceCandles(symbol, interval, limit = 200) {
   const startTime = Date.now();
   const symbolUpper = symbol.toUpperCase();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout gate
+
   try {
     const url = `https://api.binance.com/api/v3/klines?symbol=${symbolUpper}&interval=${interval}&limit=${limit}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
     const endTime = Date.now();
     const latency = endTime - startTime;
 
@@ -35,13 +40,15 @@ export async function fetchBinanceCandles(symbol, interval, limit = 200) {
       error: null
     };
   } catch (error) {
+    clearTimeout(timeoutId);
     const latency = Date.now() - startTime;
-    console.error("fetchBinanceCandles error:", error);
+    const isTimeout = error.name === 'AbortError';
+    console.error("fetchBinanceCandles error:", isTimeout ? "Request timed out after 5000ms" : error.message);
     return {
       success: false,
       candles: [],
       latency,
-      error: error.message
+      error: isTimeout ? "Binance API request timed out (5000ms limit reached)" : error.message
     };
   }
 }
@@ -51,14 +58,18 @@ export async function fetchBinanceCandles(symbol, interval, limit = 200) {
  */
 export async function fetchBinancePrice(symbol) {
   const symbolUpper = symbol.toUpperCase();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
   try {
     const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbolUpper}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) throw new Error("Ticker price fetch failed");
     const data = await response.json();
     return parseFloat(data.price);
   } catch (error) {
-    console.error("fetchBinancePrice error:", error);
+    clearTimeout(timeoutId);
+    console.error("fetchBinancePrice error:", error.name === 'AbortError' ? "Timed out" : error.message);
     return null;
   }
 }
@@ -68,9 +79,12 @@ export async function fetchBinancePrice(symbol) {
  */
 export async function fetch24hTickerStats(symbol) {
   const symbolUpper = symbol.toUpperCase();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
   try {
     const url = `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbolUpper}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) throw new Error("24hr ticker fetch failed");
     const data = await response.json();
     return {
@@ -85,7 +99,8 @@ export async function fetch24hTickerStats(symbol) {
       closeTime: data.closeTime
     };
   } catch (error) {
-    console.error("fetch24hTickerStats error:", error);
+    clearTimeout(timeoutId);
+    console.error("fetch24hTickerStats error:", error.name === 'AbortError' ? "Timed out" : error.message);
     return null;
   }
 }

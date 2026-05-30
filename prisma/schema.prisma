@@ -197,6 +197,7 @@ model Analysis {
   weightsSnapshot    Json?
   parametersSnapshot Json?
   signalVersionTag   String?
+  positionSizeScale  Float          @default(1.0)
 
   scoreComponents AnalysisScoreComponent[]
   lifecycle       SignalLifecycle?
@@ -240,6 +241,7 @@ model SignalLifecycle {
   triggerPrice   Float?
   outcomeStatus  String?     
   outcomePnL     Float?      
+  positionSizeScale Float     @default(1.0)
   
   predictedRR          Float?
   actualRR             Float?

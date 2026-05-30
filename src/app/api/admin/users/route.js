@@ -112,6 +112,12 @@ export async function POST(req) {
         if (!password) {
           return NextResponse.json({ error: 'New password is required for reset' }, { status: 400 });
         }
+        // Enforce password strength: at least 12 characters, has digit and symbol
+        if (password.length < 12 || !/\d/.test(password) || !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+          return NextResponse.json({ 
+            error: 'Password baru tidak memenuhi standard keamanan institusional. Wajib minimal 12 karakter dan mengandung angka serta karakter spesial.' 
+          }, { status: 400 });
+        }
         const newHash = await hashPassword(password);
         await prisma.user.update({
           where: { id: targetUserId },
@@ -125,6 +131,18 @@ export async function POST(req) {
         break;
 
       case 'UPDATE_PROFILE':
+        // Prevent Privilege Escalation: Only SUPER_ADMIN can modify user roles or create other SUPER_ADMIN accounts
+        const existingUser = await prisma.user.findUnique({
+          where: { id: targetUserId },
+          select: { role: true }
+        });
+        if (role && role !== existingUser.role) {
+          if (authUser.role !== 'SUPER_ADMIN') {
+            return NextResponse.json({ 
+              error: 'Otoritas tidak cukup. Hanya SUPER_ADMIN yang diizinkan untuk mengubah peran (role) pengguna.' 
+            }, { status: 403 });
+          }
+        }
         await prisma.user.update({
           where: { id: targetUserId },
           data: { name, email, role }
