@@ -1,8 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { updateConfidenceBucket, updateStrategyHealth } from './strategyHealth.js';
 
 /**
  * Finds the corresponding SignalLifecycle and updates the ConfidenceCalibration bins
- * based on the realized trade outcome.
+ * based on the realized trade outcome. Also triggers Strategy Health updates and
+ * Confidence Bucket Stats updates.
  */
 export async function processTradeOutcome(tx, { userId, asset, type, entryPrice, exitPrice, outcomeStatus, entryTime }) {
   const normAsset = asset.toUpperCase();
@@ -126,6 +127,12 @@ export async function processTradeOutcome(tx, { userId, asset, type, entryPrice,
       avgActualHoldingTime: total > 0 ? sumActHold / total : 0.0
     }
   });
+
+  // 4. Update Strategy-wide health and auto-suspension status
+  await updateStrategyHealth(tx, analysis.strategyVerId);
+
+  // 5. Update institutional confidence statistics bucket
+  await updateConfidenceBucket(tx, confidence, outcomeStatus === 'WIN');
 
   return {
     lifecycleId: matchingLifecycle.id,

@@ -33,7 +33,7 @@ export async function POST(req) {
     }
 
     const body = await req.json();
-    const { asset, type, entryPrice, exitPrice, positionSize, profitLoss, outcomeStatus, notes } = body;
+    const { asset, type, entryPrice, exitPrice, positionSize, profitLoss, outcomeStatus, notes, stopLoss, takeProfit, leverage } = body;
 
     if (!asset || !type || !entryPrice || !positionSize) {
       return NextResponse.json({ error: 'Missing required trade parameters' }, { status: 400 });
@@ -44,6 +44,9 @@ export async function POST(req) {
     const xPrice = exitPrice ? parseFloat(exitPrice) : null;
     const pSize = parseFloat(positionSize);
     let pnl = profitLoss ? parseFloat(profitLoss) : 0;
+    const sLoss = stopLoss ? parseFloat(stopLoss) : 0;
+    const tProfit = takeProfit ? parseFloat(takeProfit) : 0;
+    const lev = leverage ? parseInt(leverage) : 1;
 
     // Auto calculate PnL if not supplied but exit price is available
     if (xPrice && !profitLoss) {
@@ -71,6 +74,9 @@ export async function POST(req) {
           entryPrice: ePrice,
           exitPrice: xPrice,
           positionSize: pSize,
+          stopLoss: sLoss,
+          takeProfit: tProfit,
+          leverage: lev,
           profitLoss: pnl,
           outcomeStatus: status,
           notes,

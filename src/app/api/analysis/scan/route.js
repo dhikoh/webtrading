@@ -35,6 +35,9 @@ import { checkGlobalKillSwitch, logBlockedSignal } from '@/utils/killSwitch';
 import { saveReplaySnapshot } from '@/utils/storage';
 import tradeEvents, { EVENTS } from '@/utils/events';
 import { runMonteCarlo } from '@/utils/monteCarlo';
+import { analyzeChartImageWithGemini, generateAIExplanation } from '@/utils/gemini';
+import { evaluateRiskBudget, logRiskDecision } from '@/utils/riskBudget';
+import { processRequestOutcome } from '@/utils/circuitBreaker';
 
 const prisma = global.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
@@ -244,26 +247,39 @@ export async function POST(req) {
       }
     }
 
+    // Strategy suspension check
+    if (version.status === 'DISABLED') {
+      return NextResponse.json({
+        success: true,
+        analysis: {
+          asset: detectedTicker,
+          timeframe: detectedTimeframe,
+          signal: 'NO TRADE',
+          grade: 'F',
+          confidence: 0,
+          aiReasons: "Strategi ini ditangguhkan secara otomatis (DISABLED) karena melanggar aturan keselamatan performa (Profit Factor/Drawdown/Expectancy)."
+        }
+      });
+    }
+
+    // Circuit Breaker state check
+    const binanceCB = await prisma.dataSourceReliability.findUnique({
+      where: { sourceName: 'BINANCE_API' }
+    });
+    if (binanceCB && binanceCB.currentState === 'OFFLINE') {
+      const cbReason = "Circuit Breaker OFFLINE. Permintaan ditolak sementara karena kegagalan API Binance berulang.";
+      await logBlockedSignal(prisma, authUser.userId, detectedTicker, ["CIRCUIT_BREAKER_OFFLINE"], cbReason);
+      return NextResponse.json({ error: cbReason }, { status: 503 });
+    }
+
     // Get asset-specific volatility parameters
     const assetProfile = getAssetParams(detectedTicker);
 
     // 3. Fetch Candles from Binance
-    await prisma.dataSourceReliability.upsert({
-      where: { sourceName: 'BINANCE_API' },
-      update: { totalQueries: { increment: 1 } },
-      create: { sourceName: 'BINANCE_API', totalQueries: 1 }
-    });
-
     const fetchResult = await fetchBinanceCandles(detectedTicker, detectedTimeframe, 150);
     
-    await prisma.dataSourceReliability.update({
-      where: { sourceName: 'BINANCE_API' },
-      data: {
-        successQueries: fetchResult.success ? { increment: 1 } : undefined,
-        failureQueries: !fetchResult.success ? { increment: 1 } : undefined,
-        latencyMs: Math.round(fetchResult.latency)
-      }
-    });
+    // Process request outcome through state machine
+    await processRequestOutcome(prisma, 'BINANCE_API', fetchResult.success);
 
     if (!fetchResult.success) {
       await logBlockedSignal(prisma, authUser.userId, detectedTicker, ["DATA_SOURCE_UNAVAILABLE"], `Binance fetch failed: ${fetchResult.error}`);
@@ -271,6 +287,22 @@ export async function POST(req) {
     }
 
     const candles = fetchResult.candles;
+
+    // Data Freshness check (reject if older than 2x timeframe)
+    if (candles && candles.length > 0) {
+      const tfMinutesMap = { '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440 };
+      const tfMin = tfMinutesMap[detectedTimeframe] || 60;
+      const tfDurationMs = tfMin * 60 * 1000;
+      const lastCandle = candles[candles.length - 1];
+      const lastCandleTime = new Date(lastCandle.time || lastCandle.timestamp || Date.now()).getTime();
+      const timeDiff = Date.now() - lastCandleTime;
+
+      if (timeDiff > 2 * tfDurationMs) {
+        const staleReason = `Data Binance usang (stale). Selisih waktu lilin terakhir: ${Math.round(timeDiff / 1000 / 60)} menit (Batas toleransi: ${Math.round((2 * tfDurationMs) / 1000 / 60)} menit).`;
+        await logBlockedSignal(prisma, authUser.userId, detectedTicker, ["STALE_DATA"], staleReason);
+        return NextResponse.json({ error: staleReason }, { status: 400 });
+      }
+    }
     const closePrices = candles.map(c => c.close);
 
     // 4. Run Quantitative Indicator Engine
@@ -294,6 +326,7 @@ export async function POST(req) {
     const latestRsi = rsi[rsi.length - 1] || 50;
     const latestAtr = atr[atr.length - 1] || (latestPrice * 0.01);
     const latestRvol = rvol[rvol.length - 1] || 1.0;
+    const atrVolatilityRatio = latestAtr / latestPrice;
 
     // Structural elements
     const { peaks, troughs } = detectSwingPoints(candles);
@@ -612,6 +645,48 @@ export async function POST(req) {
       tp3 = null;
     }
 
+    const isShadowMode = version.deploymentMode === 'SHADOW';
+    const originalSignal = signal;
+
+    let riskEvaluationResult = null;
+    let finalPositionSize = 1.0;
+
+    // Evaluate Risk Budget
+    if (originalSignal !== 'NO TRADE' && entryPrice && stopLoss) {
+      const correlationGroup = assetProfile.correlationGroup || 'DEFAULT';
+      // Quant standard requested risk
+      const requestedRiskPct = 2.0;
+
+      riskEvaluationResult = await evaluateRiskBudget(
+        prisma,
+        authUser.userId,
+        detectedTicker,
+        requestedRiskPct,
+        entryPrice,
+        stopLoss,
+        correlationGroup
+      );
+
+      if (riskEvaluationResult.action === 'REJECTED') {
+        const blockReason = `Risk budget exceeded: ${riskEvaluationResult.reason}`;
+        await logBlockedSignal(prisma, authUser.userId, detectedTicker, ["RISK_BUDGET_REJECTION"], blockReason);
+        signal = 'NO TRADE';
+        entryPrice = null;
+        stopLoss = null;
+        tp1 = null;
+        tp2 = null;
+        tp3 = null;
+      } else if (riskEvaluationResult.action === 'DOWNSIZED') {
+        // Auto downsizes position size multiplier
+        finalPositionSize = riskEvaluationResult.approvedRiskPct / requestedRiskPct;
+      }
+    }
+
+    // Suppress trade execution if in shadow mode
+    if (isShadowMode && signal !== 'NO TRADE') {
+      signal = 'NO TRADE';
+    }
+
     // Dynamic Expiration calculation (Timeframe Duration * ATR Ratio * 3)
     // Map timeframe string to minutes
     const tfMinutesMap = { '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440 };
@@ -628,7 +703,7 @@ export async function POST(req) {
         asset: detectedTicker,
         timeframe: detectedTimeframe,
         sourceType,
-        signal,
+        signal: isShadowMode ? originalSignal : signal, // Store original signal in DB for shadow tracking
         grade: finalGrade,
         confidence: finalConfidence,
         marketRegime: marketRegime + " - " + ev.status,
@@ -640,6 +715,9 @@ export async function POST(req) {
         tp2,
         tp3,
         riskReward: targetRR,
+        weightsSnapshot: weights,
+        parametersSnapshot: params,
+        signalVersionTag: version.versionString,
         aiReasons: visualObservations 
           ? `AI Observations: ${visualObservations.keyObservations?.join('. ')} | EV: ${ev.message}` 
           : `Kuantitatif: ${regimeData.description} | EV: ${ev.message}`,
@@ -648,6 +726,11 @@ export async function POST(req) {
           : `Slippage: ${slippage?.riskScore || 'LOW'}, ATR Vol Ratio: ${(atrVolatilityRatio*100).toFixed(2)}%`
       }
     });
+
+    // Write risk decision log if evaluated
+    if (riskEvaluationResult) {
+      await logRiskDecision(prisma, analysis.id, detectedTicker, riskEvaluationResult);
+    }
 
     // Write Component Scores
     await Promise.all(scores.map(s => 
@@ -676,10 +759,11 @@ export async function POST(req) {
     });
 
     // Save lifecycle
+    const resolvedSignal = isShadowMode ? originalSignal : signal;
     await prisma.signalLifecycle.create({
       data: {
         analysisId: analysis.id,
-        currentState: signal === 'NO TRADE' ? 'CLOSED' : 'PENDING',
+        currentState: resolvedSignal === 'NO TRADE' ? 'CLOSED' : 'PENDING',
         expirationTime,
         expirationCandleCount: Math.ceil(expMinutes / tfMin),
         predictedRR: targetRR,
