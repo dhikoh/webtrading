@@ -3,12 +3,11 @@ import { createChart } from 'lightweight-charts';
 import { Activity, Minimize2, Maximize2 } from 'lucide-react';
 import { API_URL } from '../config.js';
 
-export default function TradingChart({ activeSymbol, marketType, onPriceTick }) {
+export default function TradingChart({ activeSymbol, marketType, socket, onPriceTick }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
   const volumeSeriesRef = useRef(null);
-  const wsRef = useRef(null);
   const [activeInterval, setActiveInterval] = useState('1m');
 
   useEffect(() => {
@@ -110,46 +109,45 @@ export default function TradingChart({ activeSymbol, marketType, onPriceTick }) 
 
     loadHistory();
 
-    // 5. Connect real-time WebSocket dynamic feeds via unblocked Binance mirror servers (.cc)
-    const wsUrl = marketType === 'spot'
-      ? `wss://stream.binance.cc:9443/ws/${activeSymbol.toLowerCase()}@kline_${activeInterval}`
-      : `wss://fstream.binance.cc/ws/${activeSymbol.toLowerCase()}@kline_${activeInterval}`;
-
-    console.log(`Connecting live charting WS: ${wsUrl}`);
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onmessage = (event) => {
+    // 5. Connect real-time WebSocket dynamic feeds via unblocked relayed stream connection
+    const handleWsMessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        const kline = data.k;
-        if (!kline) return;
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'BINANCE_RELAY' && msg.stream.includes('@kline_')) {
+          const kline = msg.data.k;
+          if (!kline) return;
 
-        const time = Math.floor(kline.t / 1000);
-        const open = parseFloat(kline.o);
-        const high = parseFloat(kline.h);
-        const low = parseFloat(kline.l);
-        const close = parseFloat(kline.c);
-        const volume = parseFloat(kline.v);
+          const time = Math.floor(kline.t / 1000);
+          const open = parseFloat(kline.o);
+          const high = parseFloat(kline.h);
+          const low = parseFloat(kline.l);
+          const close = parseFloat(kline.c);
+          const volume = parseFloat(kline.v);
 
-        // Update candle series
-        candleSeries.update({ time, open, high, low, close });
-        
-        // Update volume series
-        volumeSeries.update({
-          time,
-          value: volume,
-          color: close >= open ? 'rgba(14, 203, 129, 0.2)' : 'rgba(246, 70, 93, 0.2)'
-        });
+          // Update candle series
+          candleSeries.update({ time, open, high, low, close });
+          
+          // Update volume series
+          volumeSeries.update({
+            time,
+            value: volume,
+            color: close >= open ? 'rgba(14, 203, 129, 0.2)' : 'rgba(246, 70, 93, 0.2)'
+          });
 
-        // Trigger callback to parents header index/latest tick values
-        if (onPriceTick) {
-          onPriceTick(close);
+          // Trigger callback to parents header index/latest tick values
+          if (onPriceTick) {
+            onPriceTick(close);
+          }
         }
       } catch (error) {
         // quiet error
       }
     };
+
+    if (socket) {
+      console.log(`[Chart WS] Subscribing via active relayed stream connection.`);
+      socket.addEventListener('message', handleWsMessage);
+    }
 
     // 6. Responsive ResizeObserver
     const handleResize = () => {
@@ -163,12 +161,12 @@ export default function TradingChart({ activeSymbol, marketType, onPriceTick }) 
 
     return () => {
       resizeObserver.disconnect();
-      if (wsRef.current) {
-        wsRef.current.close();
+      if (socket) {
+        socket.removeEventListener('message', handleWsMessage);
       }
       chart.remove();
     };
-  }, [activeSymbol, marketType, activeInterval]);
+  }, [activeSymbol, marketType, activeInterval, socket]);
 
   return (
     <section className="trading-panel" style={{ gridColumn: '2', gridRow: '1', display: 'flex', flexDirection: 'column' }}>

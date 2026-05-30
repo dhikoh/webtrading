@@ -75,7 +75,22 @@ wss.on('connection', (ws, req) => {
   }
 
   ws.on('message', (message) => {
-    // Keep-alive pings or general telemetry
+    try {
+      const parsed = JSON.parse(message);
+      if (parsed.type === 'SUBSCRIBE') {
+        const symbol = parsed.symbol?.toUpperCase();
+        const marketType = parsed.marketType || 'spot';
+        ws.activeSymbol = symbol;
+        ws.activeMarketType = marketType;
+        
+        console.log(`[WS SUBSCRIBE] User ${ws.username} subscribed to ${symbol} (${marketType})`);
+        
+        // Dynamically register subscription and ensure matcher has an active stream
+        matcher.registerUserSubscription(symbol);
+      }
+    } catch (err) {
+      // quiet
+    }
   });
 
   ws.on('close', () => {

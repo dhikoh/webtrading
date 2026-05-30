@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 
-export default function OrderBook({ activeSymbol, marketType, onSelectPrice }) {
+export default function OrderBook({ activeSymbol, marketType, socket, onSelectPrice }) {
   const [bids, setBids] = useState([]);
   const [asks, setAsks] = useState([]);
   const [midPrice, setMidPrice] = useState(null);
   const [prevPrice, setPrevPrice] = useState(null);
-  const wsRef = useRef(null);
 
   useEffect(() => {
     // 1. Clear books on symbol transition
@@ -14,58 +13,53 @@ export default function OrderBook({ activeSymbol, marketType, onSelectPrice }) {
     setAsks([]);
     setMidPrice(null);
 
-    // 2. Map symbolic websockets endpoints via unblocked mirror servers (.cc)
-    const formattedSymbol = activeSymbol.toLowerCase();
-    const url = marketType === 'spot'
-      ? `wss://stream.binance.cc:9443/ws/${formattedSymbol}@depth20@100ms`
-      : `wss://fstream.binance.cc/ws/${formattedSymbol}@depth20@100ms`;
-
-    console.log(`Connecting dynamic OrderBook WS: ${url}`);
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
-
-    ws.onmessage = (event) => {
+    // 2. Attach relayed WebSocket message handler for real-time order depth
+    const handleWsMessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        
-        // Asks: tick.a (array of [price, qty])
-        // Bids: tick.b (array of [price, qty])
-        const rawAsks = data.a || [];
-        const rawBids = data.b || [];
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'BINANCE_RELAY' && msg.stream.includes('@depth')) {
+          const depth = msg.data;
+          
+          // Asks: tick.a (array of [price, qty])
+          // Bids: tick.b (array of [price, qty])
+          const rawAsks = depth.a || [];
+          const rawBids = depth.b || [];
 
-        // Map and cast to float
-        const formattedAsks = rawAsks.slice(0, 8).map(a => [parseFloat(a[0]), parseFloat(a[1])]);
-        const formattedBids = rawBids.slice(0, 8).map(b => [parseFloat(b[0]), parseFloat(b[1])]);
+          // Map and cast to float
+          const formattedAsks = rawAsks.slice(0, 8).map(a => [parseFloat(a[0]), parseFloat(a[1])]);
+          const formattedBids = rawBids.slice(0, 8).map(b => [parseFloat(b[0]), parseFloat(b[1])]);
 
-        // Calculate totals to draw relative depth background fills
-        const maxAskQty = Math.max(...formattedAsks.map(a => a[1]), 1.0);
-        const maxBidQty = Math.max(...formattedBids.map(b => b[1]), 1.0);
+          // Calculate totals to draw relative depth background fills
+          const maxAskQty = Math.max(...formattedAsks.map(a => a[1]), 1.0);
+          const maxBidQty = Math.max(...formattedBids.map(b => b[1]), 1.0);
 
-        setAsks(formattedAsks.map(a => ({ price: a[0], qty: a[1], depthPct: (a[1] / maxAskQty) * 100 })));
-        setBids(formattedBids.map(b => ({ price: b[0], qty: b[1], depthPct: (b[1] / maxBidQty) * 100 })));
+          setAsks(formattedAsks.map(a => ({ price: a[0], qty: a[1], depthPct: (a[1] / maxAskQty) * 100 })));
+          setBids(formattedBids.map(b => ({ price: b[0], qty: b[1], depthPct: (b[1] / maxBidQty) * 100 })));
 
-        if (formattedAsks.length > 0 && formattedBids.length > 0) {
-          const calculatedMid = (formattedAsks[0][0] + formattedBids[0][0]) / 2;
-          setMidPrice(prev => {
-            setPrevPrice(prev);
-            return calculatedMid;
-          });
+          if (formattedAsks.length > 0 && formattedBids.length > 0) {
+            const calculatedMid = (formattedAsks[0][0] + formattedBids[0][0]) / 2;
+            setMidPrice(prev => {
+              setPrevPrice(prev);
+              return calculatedMid;
+            });
+          }
         }
       } catch (err) {
         // quiet error
       }
     };
 
-    ws.onerror = (err) => {
-      console.error(`OrderBook WS error:`, err);
-    };
+    if (socket) {
+      console.log(`[OrderBook WS] Subscribing via active relayed stream connection.`);
+      socket.addEventListener('message', handleWsMessage);
+    }
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
+      if (socket) {
+        socket.removeEventListener('message', handleWsMessage);
       }
     };
-  }, [activeSymbol, marketType]);
+  }, [activeSymbol, marketType, socket]);
 
   // Evaluate price ticks direction
   const priceColor = midPrice >= prevPrice ? 'var(--green-binance)' : 'var(--red-binance)';

@@ -94,6 +94,15 @@ export default function App() {
               }
             }));
           }
+
+          // Extract relayed ticker updates for real-time header changes
+          else if (data.type === 'BINANCE_RELAY' && data.stream.includes('@ticker')) {
+            const ticker = data.data;
+            if (ticker) {
+              setLatestPrice(parseFloat(ticker.c));
+              setPriceChangePercent(parseFloat(ticker.P).toFixed(2));
+            }
+          }
         } catch (error) {
           // Quiet
         }
@@ -120,6 +129,19 @@ export default function App() {
       }
     };
   }, [token]);
+
+  // Send WS subscription for selected symbol viewport
+  useEffect(() => {
+    if (isWsConnected && accountWsRef.current && accountWsRef.current.readyState === WebSocket.OPEN) {
+      const subMsg = JSON.stringify({
+        type: 'SUBSCRIBE',
+        symbol: activeSymbol,
+        marketType: marketType
+      });
+      console.log(`[WS] Sending SUBSCRIBE viewport for ${activeSymbol} (${marketType})`);
+      accountWsRef.current.send(subMsg);
+    }
+  }, [isWsConnected, activeSymbol, marketType]);
 
   const handleLoginSuccess = (newToken, newUser) => {
     setToken(newToken);
@@ -203,6 +225,7 @@ export default function App() {
         <TradingChart 
           activeSymbol={activeSymbol}
           marketType={marketType}
+          socket={accountWsRef.current}
           onPriceTick={handlePriceTick}
         />
 
@@ -210,6 +233,7 @@ export default function App() {
         <OrderBook 
           activeSymbol={activeSymbol}
           marketType={marketType}
+          socket={accountWsRef.current}
           onSelectPrice={(price) => setLatestPrice(price)}
         />
 

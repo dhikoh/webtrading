@@ -7,6 +7,7 @@ class OrderMatcher {
     this.activeStreams = new Map(); // symbol -> { spotWs, futuresWs }
     this.wsServer = null; // Reference to our client WebSocket server to broadcast updates
     this.latestPrices = { spot: {}, futures: {} }; // symbol -> price
+    this.userSubscribedSymbols = new Set(); // set of active symbols watched by browsers
   }
 
   setWsServer(wsServer) {
@@ -52,6 +53,15 @@ class OrderMatcher {
     setInterval(() => this.evaluateFuturesRiskAndPnL(), 1000);
   }
 
+  registerUserSubscription(symbol) {
+    if (!symbol) return;
+    const lower = symbol.toLowerCase();
+    if (!this.userSubscribedSymbols.has(lower)) {
+      this.userSubscribedSymbols.add(lower);
+      this.scanActiveSymbols(); // Trigger instant connection on demand
+    }
+  }
+
   async scanActiveSymbols() {
     try {
       // Find all symbols with pending orders or open positions
@@ -83,8 +93,19 @@ class OrderMatcher {
         if (!symbolsToWatch.has(symbol)) {
           symbolsToWatch.set(symbol, { spot: false, futures: false });
         }
-        symbolsToWatch.get(symbol).futures = true; // Positions are always futures
+        symbolsToWatch.get(symbol).futures = true;
       });
+
+      // Inject all user-subscribed viewports
+      for (const subSymbol of this.userSubscribedSymbols) {
+        const symbolLower = subSymbol.toLowerCase();
+        if (!symbolsToWatch.has(symbolLower)) {
+          symbolsToWatch.set(symbolLower, { spot: true, futures: true });
+        } else {
+          symbolsToWatch.get(symbolLower).spot = true;
+          symbolsToWatch.get(symbolLower).futures = true;
+        }
+      }
 
       // Always ensure we watch BTCUSDT as a standard heartbeat
       if (!symbolsToWatch.has('btcusdt')) {
@@ -132,30 +153,52 @@ class OrderMatcher {
 
   connectWebSocket(symbol, type) {
     const stream = this.activeStreams.get(symbol);
-    const url = type === 'spot' 
-      ? `wss://stream.binance.com:9443/ws/${symbol}@trade` 
-      : `wss://fstream.binance.com/ws/${symbol}@aggTrade`;
+    
+    // Using Binance Combined Streams to multiplex trade, kline, depth, and 24h ticker updates
+    const url = type === 'spot'
+      ? `wss://stream.binance.com:9443/stream?streams=${symbol}@trade/${symbol}@kline_1m/${symbol}@depth20@100ms/${symbol}@ticker`
+      : `wss://fstream.binance.com/stream?streams=${symbol}@aggTrade/${symbol}@kline_1m/${symbol}@depth20@100ms/${symbol}@ticker`;
 
-    console.log(`Connecting matching engine WS: ${url}`);
+    console.log(`Connecting matching engine WS (Combined): ${url}`);
     const ws = new WebSocket(url);
 
     ws.on('message', async (data) => {
       try {
-        const tick = JSON.parse(data);
-        const price = parseFloat(tick.p);
-        
-        // Update price registry
-        this.latestPrices[type][symbol.toUpperCase()] = price;
+        const payload = JSON.parse(data);
+        const streamName = payload.stream;
+        const tick = payload.data;
+        if (!streamName || !tick) return;
 
-        // Process tick-by-tick order matching
-        await this.matchOrdersForSymbol(symbol.toUpperCase(), price, type);
+        // Process matching engine trades logic
+        if (streamName.endsWith('@trade') || streamName.endsWith('@aggTrade')) {
+          const price = parseFloat(tick.p);
+          this.latestPrices[type][symbol.toUpperCase()] = price;
+          await this.matchOrdersForSymbol(symbol.toUpperCase(), price, type);
+        }
+
+        // Relay to all client browsers subscribed to this viewport
+        if (this.wsServer) {
+          const relayMsg = JSON.stringify({
+            type: 'BINANCE_RELAY',
+            stream: streamName,
+            marketType: type,
+            data: tick
+          });
+
+          this.wsServer.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN &&
+                client.activeSymbol === symbol.toUpperCase() &&
+                client.activeMarketType === type) {
+              client.send(relayMsg);
+            }
+          });
+        }
       } catch (err) {
         // Suppress json parsing errors
       }
     });
 
     ws.on('close', () => {
-      // Reconnect if symbol is still needed
       const currentStream = this.activeStreams.get(symbol);
       if (currentStream && ((type === 'spot' && currentStream.spotWs === ws) || (type === 'futures' && currentStream.futuresWs === ws))) {
         if (type === 'spot') currentStream.spotWs = null;
