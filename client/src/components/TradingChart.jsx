@@ -228,7 +228,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
     const handleWsMessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'BINANCE_RELAY' && msg.marketType === marketType && msg.stream.includes('@kline_')) {
+        if (msg.type === 'BYBIT_RELAY' && msg.marketType === marketType && msg.stream.includes('@kline_')) {
           const kline = msg.data.k;
           if (!kline) return;
 
@@ -501,11 +501,11 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
             color: 'var(--text-muted)'
           }}>
             <span>Waktu: <b style={{ color: '#fff' }}>{legend.time}</b></span>
-            <span>O: <b style={{ color: legend.isUp ? 'var(--green-binance)' : 'var(--red-binance)' }}>{legend.open}</b></span>
-            <span>H: <b style={{ color: 'var(--green-binance)' }}>{legend.high}</b></span>
-            <span>L: <b style={{ color: 'var(--red-binance)' }}>{legend.low}</b></span>
-            <span>C: <b style={{ color: legend.isUp ? 'var(--green-binance)' : 'var(--red-binance)' }}>{legend.close}</b></span>
-            <span>Change: <b style={{ color: legend.isUp ? 'var(--green-binance)' : 'var(--red-binance)' }}>{legend.change}</b></span>
+            <span>O: <b style={{ color: legend.isUp ? 'var(--green-bybit)' : 'var(--red-bybit)' }}>{legend.open}</b></span>
+            <span>H: <b style={{ color: 'var(--green-bybit)' }}>{legend.high}</b></span>
+            <span>L: <b style={{ color: 'var(--red-bybit)' }}>{legend.low}</b></span>
+            <span>C: <b style={{ color: legend.isUp ? 'var(--green-bybit)' : 'var(--red-bybit)' }}>{legend.close}</b></span>
+            <span>Change: <b style={{ color: legend.isUp ? 'var(--green-bybit)' : 'var(--red-bybit)' }}>{legend.change}</b></span>
             <span>Range: <b style={{ color: '#fff' }}>{legend.range}</b></span>
           </div>
 
@@ -546,12 +546,12 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
 
             <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Likuiditas Eksternal</div>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: 'var(--green-binance)' }}>Bybit Order Book Tier-1</div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: 'var(--green-bybit)' }}>Bybit Order Book Tier-1</div>
             </div>
 
             <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Status Portal</div>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: 'var(--green-binance)' }}>Aktif & Stabil</div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: 'var(--green-bybit)' }}>Aktif & Stabil</div>
             </div>
           </div>
         </div>
@@ -569,7 +569,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
                 width: '100px',
                 height: '100px',
                 borderRadius: '50%',
-                background: 'conic-gradient(var(--green-binance) 0% 51.38%, var(--red-binance) 51.38% 100%)',
+                background: 'conic-gradient(var(--green-bybit) 0% 51.38%, var(--red-bybit) 51.38% 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -588,14 +588,14 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
                   color: 'var(--text-muted)'
                 }}>
                   <span>Beli Net</span>
-                  <span style={{ fontWeight: 'bold', color: 'var(--green-binance)', fontSize: '13px' }}>51.38%</span>
+                  <span style={{ fontWeight: 'bold', color: 'var(--green-bybit)', fontSize: '13px' }}>51.38%</span>
                 </div>
               </div>
 
               {/* Pie Labels Legend */}
               <div style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--green-binance)' }}></div>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--green-bybit)' }}></div>
                   <span style={{ color: 'var(--text-muted)' }}>Big Buy:</span>
                   <span style={{ fontWeight: 'bold' }}>26.37%</span>
                 </div>
@@ -610,7 +610,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
                   <span style={{ fontWeight: 'bold' }}>10.03%</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '4px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--red-binance)' }}></div>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--red-bybit)' }}></div>
                   <span style={{ color: 'var(--text-muted)' }}>Big Sell:</span>
                   <span style={{ fontWeight: 'bold' }}>25.54%</span>
                 </div>
@@ -631,11 +631,11 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
             <div style={{ flex: 1, minWidth: '220px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
                 <span>24H Net Inflow:</span>
-                <span style={{ color: 'var(--green-binance)', fontWeight: 'bold' }}>+64.43K USDT</span>
+                <span style={{ color: 'var(--green-bybit)', fontWeight: 'bold' }}>+64.43K USDT</span>
               </div>
               
-              <div style={{ height: '6px', backgroundColor: 'var(--red-binance)', borderRadius: '3px', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: '51.38%', backgroundColor: 'var(--green-binance)' }}></div>
+              <div style={{ height: '6px', backgroundColor: 'var(--red-bybit)', borderRadius: '3px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: '51.38%', backgroundColor: 'var(--green-bybit)' }}></div>
               </div>
 
               {/* Multi day metrics */}
@@ -657,11 +657,11 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
                         right: d.isPos ? 'auto' : '50%',
                         width: d.isPos ? '20%' : '35%',
                         height: '100%',
-                        backgroundColor: d.isPos ? 'var(--green-binance)' : 'var(--red-binance)',
+                        backgroundColor: d.isPos ? 'var(--green-bybit)' : 'var(--red-bybit)',
                         borderRadius: '2px'
                       }}></div>
                     </div>
-                    <span style={{ width: '60px', textAlign: 'right', fontWeight: 'bold', color: d.isPos ? 'var(--green-binance)' : 'var(--red-binance)' }}>{d.flow}</span>
+                    <span style={{ width: '60px', textAlign: 'right', fontWeight: 'bold', color: d.isPos ? 'var(--green-bybit)' : 'var(--red-bybit)' }}>{d.flow}</span>
                   </div>
                 ))}
               </div>

@@ -191,10 +191,10 @@ class OrderMatcher {
             this.latestPrices[type][symbol.toUpperCase()] = price;
             await this.matchOrdersForSymbol(symbol.toUpperCase(), price, type);
 
-            // Relay trade to client in expected Binance @trade format
+            // Relay trade to client in expected Bybit @trade format
             if (this.wsServer) {
               const relayMsg = JSON.stringify({
-                type: 'BINANCE_RELAY',
+                type: 'BYBIT_RELAY',
                 stream: `${symbol.toLowerCase()}@trade`,
                 marketType: type,
                 data: {
@@ -208,12 +208,12 @@ class OrderMatcher {
           }
         }
 
-        // 2. Handle klines - format to Binance stream kline format
+        // 2. Handle klines - format to Bybit stream kline format
         else if (topic.startsWith('kline.1.')) {
           const kline = tick[0];
           if (kline && this.wsServer) {
             const relayMsg = JSON.stringify({
-              type: 'BINANCE_RELAY',
+              type: 'BYBIT_RELAY',
               stream: `${symbol.toLowerCase()}@kline_1m`,
               marketType: type,
               data: {
@@ -231,11 +231,11 @@ class OrderMatcher {
           }
         }
 
-        // 3. Handle Order Book depth - format to Binance stream depth format
+        // 3. Handle Order Book depth - format to Bybit stream depth format
         else if (topic.startsWith('orderbook.')) {
           if (this.wsServer) {
             const relayMsg = JSON.stringify({
-              type: 'BINANCE_RELAY',
+              type: 'BYBIT_RELAY',
               stream: `${symbol.toLowerCase()}@depth20@100ms`,
               marketType: type,
               data: {
@@ -247,7 +247,7 @@ class OrderMatcher {
           }
         }
 
-        // 4. Handle 24h Ticker statistics - format to Binance stream ticker format
+        // 4. Handle 24h Ticker statistics - format to Bybit stream ticker format
         else if (topic.startsWith('tickers.')) {
           const last = parseFloat(tick.lastPrice || tick.last_price);
           const prev = parseFloat(tick.prevPrice24h || tick.prev_price_24h || tick.lastPrice);
@@ -255,7 +255,7 @@ class OrderMatcher {
 
           if (this.wsServer) {
             const relayMsg = JSON.stringify({
-              type: 'BINANCE_RELAY',
+              type: 'BYBIT_RELAY',
               stream: `${symbol.toLowerCase()}@ticker`,
               marketType: type,
               data: {

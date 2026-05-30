@@ -33,7 +33,7 @@ export default function Header({
   const quoteAsset = activeSymbol.replace(baseAsset, '');
 
   const percentNum = parseFloat(priceChangePercent || 0);
-  const colorClass = percentNum >= 0 ? 'var(--green-binance)' : 'var(--red-binance)';
+  const colorClass = percentNum >= 0 ? 'var(--green-bybit)' : 'var(--red-bybit)';
   const percentSign = percentNum >= 0 ? '+' : '';
 
   // Seed Tag Detection based on screenshot!
@@ -84,7 +84,7 @@ export default function Header({
             <span style={{ 
               fontSize: '14px', 
               fontWeight: 600, 
-              color: percentNum >= 0 ? 'var(--green-binance)' : 'var(--red-binance)',
+              color: percentNum >= 0 ? 'var(--green-bybit)' : 'var(--red-bybit)',
               fontFamily: 'monospace'
             }}>
               {latestPrice ? parseFloat(latestPrice).toFixed(activeSymbol.includes('USDT') || activeSymbol.includes('USDC') ? 2 : 6) : '---'}
@@ -105,7 +105,7 @@ export default function Header({
           </div>
 
           <div style={{ display: 'none', flexDirection: 'column' }}>
-            {/* Extended Binance details can be dynamically added */}
+            {/* Extended Bybit details can be dynamically added */}
           </div>
         </div>
       </div>
@@ -115,7 +115,7 @@ export default function Header({
         
         {/* Connection Pulse indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
-          <Radio size={14} style={{ color: isWsConnected ? 'var(--green-binance)' : 'var(--red-binance)' }} />
+          <Radio size={14} style={{ color: isWsConnected ? 'var(--green-bybit)' : 'var(--red-bybit)' }} />
           <span>Real-time Stream</span>
         </div>
 
@@ -180,8 +180,8 @@ export default function Header({
           <span style={{ 
             fontSize: '9px', 
             fontWeight: 700, 
-            backgroundColor: user?.role === 'admin' ? 'var(--red-binance-light)' : 'var(--green-binance-light)',
-            color: user?.role === 'admin' ? 'var(--red-binance)' : 'var(--green-binance)',
+            backgroundColor: user?.role === 'admin' ? 'var(--red-bybit-light)' : 'var(--green-bybit-light)',
+            color: user?.role === 'admin' ? 'var(--red-bybit)' : 'var(--green-bybit)',
             padding: '1px 4px', 
             borderRadius: '2px', 
             textTransform: 'uppercase'
@@ -202,7 +202,7 @@ export default function Header({
             alignItems: 'center', 
             transition: 'color 0.2s ease'
           }}
-          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--red-binance)'}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--red-bybit)'}
           onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
           title="Sign out of trade session"
         >

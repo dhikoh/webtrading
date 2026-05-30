@@ -17,7 +17,7 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
     const handleWsMessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'BINANCE_RELAY' && msg.stream.includes('@depth')) {
+        if (msg.type === 'BYBIT_RELAY' && msg.stream.includes('@depth')) {
           const depth = msg.data;
           
           // Asks: tick.a (array of [price, qty])
@@ -62,7 +62,7 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
   }, [activeSymbol, marketType, socket]);
 
   // Evaluate price ticks direction
-  const priceColor = midPrice >= prevPrice ? 'var(--green-binance)' : 'var(--red-binance)';
+  const priceColor = midPrice >= prevPrice ? 'var(--green-bybit)' : 'var(--red-bybit)';
   const PriceIcon = midPrice >= prevPrice ? ArrowUp : ArrowDown;
 
   return (

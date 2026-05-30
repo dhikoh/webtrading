@@ -96,7 +96,7 @@ export default function App() {
           }
 
           // Extract relayed ticker updates for real-time header changes
-          else if (data.type === 'BINANCE_RELAY' && data.stream.includes('@ticker')) {
+          else if (data.type === 'BYBIT_RELAY' && data.stream.includes('@ticker')) {
             const ticker = data.data;
             if (ticker) {
               setLatestPrice(parseFloat(ticker.c));

@@ -46,7 +46,7 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
         const res = await fetch(`${API_URL}${endpoint}`);
         const data = await res.json();
         
-        // Enrich symbol data with mock/calculated metrics for full MEXC experience
+        // Enrich symbol data with mock/calculated metrics for full Bybit experience
         const enriched = (Array.isArray(data) ? data : []).map(s => {
           // Provide realistic price estimates based on historical assets
           let lastPrice = 1.0;
@@ -329,7 +329,7 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
               const isActive = s.symbol === activeSymbol && activeMarketTab === marketType;
               const hasFav = favorites.includes(s.symbol);
               const changePct = parseFloat(s.change24h || 0);
-              const changeColor = changePct >= 0 ? 'var(--green-binance)' : 'var(--red-binance)';
+              const changeColor = changePct >= 0 ? 'var(--green-bybit)' : 'var(--red-bybit)';
               const isUp = changePct >= 0;
 
               return (
@@ -423,7 +423,7 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
                       color: changeColor,
                       fontWeight: 'bold',
                       fontSize: '10px',
-                      background: isUp ? 'var(--green-binance-light)' : 'var(--red-binance-light)',
+                      background: isUp ? 'var(--green-bybit-light)' : 'var(--red-bybit-light)',
                       padding: '2px 6px',
                       borderRadius: '3px',
                       fontFamily: 'monospace',

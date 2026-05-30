@@ -170,7 +170,7 @@ export default function BottomTabs({
         <button 
           className={`tab-btn ${activeTab === 'pnl' ? 'active' : ''}`} 
           onClick={() => setActiveTab('pnl')}
-          style={{ color: 'var(--green-binance)', borderBottomColor: activeTab === 'pnl' ? 'var(--green-binance)' : 'transparent' }}
+          style={{ color: 'var(--green-bybit)', borderBottomColor: activeTab === 'pnl' ? 'var(--green-bybit)' : 'transparent' }}
         >
           PnL & Asset Reports
         </button>
@@ -179,7 +179,7 @@ export default function BottomTabs({
           <button 
             className={`tab-btn ${activeTab === 'admin' ? 'active' : ''}`} 
             onClick={() => setActiveTab('admin')}
-            style={{ color: 'var(--red-binance)', borderBottomColor: activeTab === 'admin' ? 'var(--red-binance)' : 'transparent' }}
+            style={{ color: 'var(--red-bybit)', borderBottomColor: activeTab === 'admin' ? 'var(--red-bybit)' : 'transparent' }}
           >
             <ShieldCheck size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'text-bottom' }} />
             Super Admin Panel
@@ -214,7 +214,7 @@ export default function BottomTabs({
               <tbody>
                 {positions.map(pos => {
                   const floating = floatingPnLs[pos.id] || { markPrice: pos.entryPrice, unrealizedPnL: 0 };
-                  const upnlColor = floating.unrealizedPnL >= 0 ? 'var(--green-binance)' : 'var(--red-binance)';
+                  const upnlColor = floating.unrealizedPnL >= 0 ? 'var(--green-bybit)' : 'var(--red-bybit)';
                   const pnlSign = floating.unrealizedPnL >= 0 ? '+' : '';
 
                   return (
@@ -222,8 +222,8 @@ export default function BottomTabs({
                       <td style={{ padding: '6px', fontWeight: 600 }}>{pos.symbol}</td>
                       <td style={{ padding: '6px' }}>
                         <span style={{ 
-                          color: pos.side === 'LONG' ? 'var(--green-binance)' : 'var(--red-binance)',
-                          backgroundColor: pos.side === 'LONG' ? 'var(--green-binance-light)' : 'var(--red-binance-light)',
+                          color: pos.side === 'LONG' ? 'var(--green-bybit)' : 'var(--red-bybit)',
+                          backgroundColor: pos.side === 'LONG' ? 'var(--green-bybit-light)' : 'var(--red-bybit-light)',
                           padding: '1px 4px', borderRadius: '2px', fontWeight: 700, fontSize: '10px'
                         }}>
                           {pos.side} {pos.leverage}x
@@ -234,7 +234,7 @@ export default function BottomTabs({
                       <td style={{ padding: '6px', fontFamily: 'monospace', color: 'var(--primary-gold)' }}>
                         {parseFloat(floating.markPrice).toFixed(2)}
                       </td>
-                      <td style={{ padding: '6px', fontFamily: 'monospace', color: 'var(--red-binance)', fontWeight: 600 }}>
+                      <td style={{ padding: '6px', fontFamily: 'monospace', color: 'var(--red-bybit)', fontWeight: 600 }}>
                         {parseFloat(pos.liquidationPrice).toFixed(2)}
                       </td>
                       <td style={{ padding: '6px', fontFamily: 'monospace' }}>{parseFloat(pos.margin).toFixed(4)} USDT</td>
@@ -245,7 +245,7 @@ export default function BottomTabs({
                         <button 
                           onClick={() => handleClosePosition(pos.symbol)}
                           style={{
-                            backgroundColor: 'var(--red-binance-light)', color: 'var(--red-binance)', border: '1px solid var(--red-binance)',
+                            backgroundColor: 'var(--red-bybit-light)', color: 'var(--red-bybit)', border: '1px solid var(--red-bybit)',
                             borderRadius: '3px', padding: '2px 6px', fontSize: '10px', fontWeight: 600, cursor: 'pointer'
                           }}
                         >
@@ -286,7 +286,7 @@ export default function BottomTabs({
                     <td style={{ padding: '6px', fontWeight: 600 }}>{order.symbol}</td>
                     <td style={{ padding: '6px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{order.marketType}</td>
                     <td style={{ padding: '6px' }}>
-                      <span style={{ color: order.side === 'BUY' ? 'var(--green-binance)' : 'var(--red-binance)', fontWeight: 600 }}>
+                      <span style={{ color: order.side === 'BUY' ? 'var(--green-bybit)' : 'var(--red-bybit)', fontWeight: 600 }}>
                         {order.side}
                       </span>
                     </td>
@@ -395,8 +395,8 @@ export default function BottomTabs({
                   />
                 </div>
 
-                {transferErr && <div style={{ color: 'var(--red-binance)', fontSize: '10.5px', backgroundColor: 'var(--red-binance-light)', padding: '6px', borderRadius: '3px' }}>{transferErr}</div>}
-                {transferOk && <div style={{ color: 'var(--green-binance)', fontSize: '10.5px', backgroundColor: 'var(--green-binance-light)', padding: '6px', borderRadius: '3px' }}>{transferOk}</div>}
+                {transferErr && <div style={{ color: 'var(--red-bybit)', fontSize: '10.5px', backgroundColor: 'var(--red-bybit-light)', padding: '6px', borderRadius: '3px' }}>{transferErr}</div>}
+                {transferOk && <div style={{ color: 'var(--green-bybit)', fontSize: '10.5px', backgroundColor: 'var(--green-bybit-light)', padding: '6px', borderRadius: '3px' }}>{transferOk}</div>}
 
                 <button type="submit" disabled={transferLoading} className="btn-primary" style={{ padding: '8px', fontSize: '12px' }}>
                   {transferLoading ? 'Processing...' : 'Confirm Transfer'}
@@ -415,7 +415,7 @@ export default function BottomTabs({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
               <div style={{ backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px' }}>
-                <span style={{ fontWeight: 600, color: 'var(--red-binance)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                <span style={{ fontWeight: 600, color: 'var(--red-bybit)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                   <Database size={13} />
                   <span>Database Users & Balance Vaults</span>
                 </span>
@@ -437,8 +437,8 @@ export default function BottomTabs({
                         <td style={{ padding: '4px' }}>
                           <span style={{ 
                             fontSize: '8.5px', fontWeight: 700, padding: '1px 3px', borderRadius: '2px',
-                            backgroundColor: u.role === 'admin' ? 'var(--red-binance-light)' : 'var(--green-binance-light)',
-                            color: u.role === 'admin' ? 'var(--red-binance)' : 'var(--green-binance)'
+                            backgroundColor: u.role === 'admin' ? 'var(--red-bybit-light)' : 'var(--green-bybit-light)',
+                            color: u.role === 'admin' ? 'var(--red-bybit)' : 'var(--green-bybit)'
                           }}>
                             {u.role}
                           </span>
@@ -465,12 +465,12 @@ export default function BottomTabs({
                     adminLogs.map(log => (
                       <div key={log.id} style={{ backgroundColor: 'var(--bg-main)', border: '1px solid var(--border-color)', padding: '6px', borderRadius: '4px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                          <span style={{ color: 'var(--red-binance)', fontWeight: 600 }}>{log.actionType}</span>
+                          <span style={{ color: 'var(--red-bybit)', fontWeight: 600 }}>{log.actionType}</span>
                           <span style={{ color: 'var(--text-muted)' }}>{new Date(log.createdAt).toLocaleTimeString()}</span>
                         </div>
                         <p style={{ color: 'var(--text-active)' }}>{log.description}</p>
                         <div style={{ fontSize: '9.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                          Before: <code style={{ color: 'var(--red-binance)' }}>{log.beforeValue}</code> | After: <code style={{ color: 'var(--green-binance)' }}>{log.afterValue}</code>
+                          Before: <code style={{ color: 'var(--red-bybit)' }}>{log.beforeValue}</code> | After: <code style={{ color: 'var(--green-bybit)' }}>{log.afterValue}</code>
                         </div>
                       </div>
                     ))
@@ -481,8 +481,8 @@ export default function BottomTabs({
             </div>
 
             {/* Right: Inject/Adjust Balances tool panel */}
-            <div style={{ backgroundColor: 'var(--bg-main)', border: '1px solid var(--red-binance)', borderRadius: '6px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', alignSelf: 'start' }}>
-              <span style={{ fontWeight: 600, fontSize: '12.5px', color: 'var(--red-binance)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ backgroundColor: 'var(--bg-main)', border: '1px solid var(--red-bybit)', borderRadius: '6px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', alignSelf: 'start' }}>
+              <span style={{ fontWeight: 600, fontSize: '12.5px', color: 'var(--red-bybit)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <PlusCircle size={14} />
                 <span>Adjust / Inject Balances</span>
               </span>
@@ -544,14 +544,14 @@ export default function BottomTabs({
                   />
                 </div>
 
-                {adminErr && <div style={{ color: 'var(--red-binance)', fontSize: '10.5px', backgroundColor: 'var(--red-binance-light)', padding: '6px', borderRadius: '3px' }}>{adminErr}</div>}
-                {adminOk && <div style={{ color: 'var(--green-binance)', fontSize: '10.5px', backgroundColor: 'var(--green-binance-light)', padding: '6px', borderRadius: '3px' }}>{adminOk}</div>}
+                {adminErr && <div style={{ color: 'var(--red-bybit)', fontSize: '10.5px', backgroundColor: 'var(--red-bybit-light)', padding: '6px', borderRadius: '3px' }}>{adminErr}</div>}
+                {adminOk && <div style={{ color: 'var(--green-bybit)', fontSize: '10.5px', backgroundColor: 'var(--green-bybit-light)', padding: '6px', borderRadius: '3px' }}>{adminOk}</div>}
 
                 <button 
                   type="submit" 
                   disabled={adminLoading} 
                   style={{
-                    backgroundColor: 'var(--red-binance)', color: '#000', border: 'none', borderRadius: '4px',
+                    backgroundColor: 'var(--red-bybit)', color: '#000', border: 'none', borderRadius: '4px',
                     padding: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer'
                   }}
                 >
@@ -651,11 +651,11 @@ export default function BottomTabs({
                   borderRadius: '6px',
                   padding: '16px'
                 }}>
-                  <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--green-binance)' }}>Ringkasan PnL Kumulatif</h4>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', margin: '4px 0 4px 0', color: 'var(--green-binance)' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--green-bybit)' }}>Ringkasan PnL Kumulatif</h4>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', margin: '4px 0 4px 0', color: 'var(--green-bybit)' }}>
                     +{cumPnLVal.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '12px' }}>USDT</span>
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--green-binance)', fontWeight: 600, marginBottom: '16px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--green-bybit)', fontWeight: 600, marginBottom: '16px' }}>
                     Tingkat Pengembalian Akumulatif: +{cumPct}%
                   </div>
 
@@ -678,10 +678,10 @@ export default function BottomTabs({
                   padding: '12px'
                 }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>7-Day PnL</div>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-binance)' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-bybit)' }}>
                     +{pnl7d.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT
                   </div>
-                  <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-binance)', fontWeight: 600 }}>
+                  <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-bybit)', fontWeight: 600 }}>
                     +{pct7d}%
                   </div>
                 </div>
@@ -694,10 +694,10 @@ export default function BottomTabs({
                   padding: '12px'
                 }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>30-Day PnL</div>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-binance)' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-bybit)' }}>
                     +{pnl30d.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT
                   </div>
-                  <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-binance)', fontWeight: 600 }}>
+                  <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-bybit)', fontWeight: 600 }}>
                     +{pct30d}%
                   </div>
                 </div>
@@ -710,10 +710,10 @@ export default function BottomTabs({
                   padding: '12px'
                 }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>90-Day PnL</div>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-binance)' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-bybit)' }}>
                     +{pnl90d.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT
                   </div>
-                  <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-binance)', fontWeight: 600 }}>
+                  <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-bybit)', fontWeight: 600 }}>
                     +{pct90d}%
                   </div>
                 </div>

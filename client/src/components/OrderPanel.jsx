@@ -146,7 +146,7 @@ export default function OrderPanel({
         <button
           style={{
             flex: 1,
-            backgroundColor: side === 'BUY' ? 'var(--green-binance)' : 'transparent',
+            backgroundColor: side === 'BUY' ? 'var(--green-bybit)' : 'transparent',
             color: side === 'BUY' ? '#000' : 'var(--text-muted)',
             fontWeight: 700,
             border: 'none',
@@ -161,7 +161,7 @@ export default function OrderPanel({
         <button
           style={{
             flex: 1,
-            backgroundColor: side === 'SELL' ? 'var(--red-binance)' : 'transparent',
+            backgroundColor: side === 'SELL' ? 'var(--red-bybit)' : 'transparent',
             color: side === 'SELL' ? '#000' : 'var(--text-muted)',
             fontWeight: 700,
             border: 'none',
@@ -339,14 +339,14 @@ export default function OrderPanel({
 
         {/* Errors & Alerts Displays */}
         {error && (
-          <div style={{ color: 'var(--red-binance)', fontSize: '11.5px', backgroundColor: 'var(--red-binance-light)', padding: '8px', borderRadius: '4px', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
+          <div style={{ color: 'var(--red-bybit)', fontSize: '11.5px', backgroundColor: 'var(--red-bybit-light)', padding: '8px', borderRadius: '4px', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
             <AlertCircle size={14} style={{ flexShrink: 0 }} />
             <span>{error}</span>
           </div>
         )}
 
         {successMsg && (
-          <div style={{ color: 'var(--green-binance)', fontSize: '11.5px', backgroundColor: 'var(--green-binance-light)', padding: '8px', borderRadius: '4px', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
+          <div style={{ color: 'var(--green-bybit)', fontSize: '11.5px', backgroundColor: 'var(--green-bybit-light)', padding: '8px', borderRadius: '4px', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
             <AlertCircle size={14} style={{ flexShrink: 0 }} />
             <span>{successMsg}</span>
           </div>
@@ -365,7 +365,7 @@ export default function OrderPanel({
           type="submit"
           disabled={loading}
           style={{
-            backgroundColor: side === 'BUY' ? 'var(--green-binance)' : 'var(--red-binance)',
+            backgroundColor: side === 'BUY' ? 'var(--green-bybit)' : 'var(--red-bybit)',
             color: '#000',
             fontWeight: 700,
             fontSize: '13.5px',

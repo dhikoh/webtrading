@@ -5,14 +5,14 @@
   --bg-panel: #161a1e;
   --bg-input: #24292e;
   --border-color: #2b3139;
-  --primary-gold: #f0b90b;
-  --primary-gold-hover: #fcd535;
+  --primary-gold: #ffb11a;
+  --primary-gold-hover: #ffc44d;
   --text-active: #eaecef;
   --text-muted: #848e9c;
-  --green-binance: #0ecb81;
-  --green-binance-light: rgba(14, 203, 129, 0.15);
-  --red-binance: #f6465d;
-  --red-binance-light: rgba(246, 70, 93, 0.15);
+  --green-bybit: #0ecb81;
+  --green-bybit-light: rgba(14, 203, 129, 0.15);
+  --red-bybit: #f6465d;
+  --red-bybit-light: rgba(246, 70, 93, 0.15);
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --shadow-premium: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   --glass-effect: rgba(22, 26, 30, 0.75);
@@ -317,8 +317,8 @@ body {
   transition: width 0.3s ease;
 }
 
-.depth-bar.ask { background-color: var(--red-binance); }
-.depth-bar.bid { background-color: var(--green-binance); }
+.depth-bar.ask { background-color: var(--red-bybit); }
+.depth-bar.bid { background-color: var(--green-bybit); }
 
 .depth-row {
   position: relative;
@@ -340,8 +340,8 @@ body {
   text-align: right;
 }
 
-.depth-price-ask { color: var(--red-binance); text-align: left; }
-.depth-price-bid { color: var(--green-binance); text-align: left; }
+.depth-price-ask { color: var(--red-bybit); text-align: left; }
+.depth-price-bid { color: var(--green-bybit); text-align: left; }
 
 /* Custom Badge / Tags */
 .seed-tag {

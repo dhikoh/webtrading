@@ -10,7 +10,7 @@ export default function AcademyHelp({ isOpen, onClose }) {
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary-gold)', fontWeight: 600, fontSize: '15px' }}>
             <HelpCircle size={20} />
-            <span>Binance Academy Trading Simulator Manual</span>
+            <span>Bybit Academy Trading Simulator Manual</span>
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
             <X size={20} />
@@ -35,7 +35,7 @@ export default function AcademyHelp({ isOpen, onClose }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--green-binance)', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--green-bybit)', fontWeight: 600 }}>
               <Layers size={16} />
               <span>2. Leverage and Position Initial Margin</span>
             </div>
@@ -50,7 +50,7 @@ export default function AcademyHelp({ isOpen, onClose }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--red-binance)', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--red-bybit)', fontWeight: 600 }}>
               <ShieldAlert size={16} />
               <span>3. Maintenance Margin & Isolated Liquidation Price</span>
             </div>
@@ -62,8 +62,8 @@ export default function AcademyHelp({ isOpen, onClose }) {
               <li>If your position's margin + unrealized PnL falls below MMR, your position is forcefully **liquidated**.</li>
               <li><strong>Isolated Liquidation Price Formula:</strong></li>
               <li style={{ listStyle: 'none', margin: '6px 0', padding: '6px', backgroundColor: 'var(--bg-main)', borderRadius: '4px', fontFamily: 'monospace' }}>
-                <span style={{ color: 'var(--green-binance)' }}>Long:</span> Liq Price = (Entry Price × Size - Margin) / [Size × (1 - 0.004)]<br />
-                <span style={{ color: 'var(--red-binance)' }}>Short:</span> Liq Price = (Entry Price × Size + Margin) / [Size × (1 + 0.004)]
+                <span style={{ color: 'var(--green-bybit)' }}>Long:</span> Liq Price = (Entry Price × Size - Margin) / [Size × (1 - 0.004)]<br />
+                <span style={{ color: 'var(--red-bybit)' }}>Short:</span> Liq Price = (Entry Price × Size + Margin) / [Size × (1 + 0.004)]
               </li>
               <li>When liquidated, the allocated isolated margin is lost to the System Insurance Fund, preventing account balance deficits.</li>
             </ul>

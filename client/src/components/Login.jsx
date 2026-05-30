@@ -43,7 +43,7 @@ export default function Login({ onLoginSuccess }) {
       <div className="login-card">
         <div className="login-logo">
           <ShieldCheck size={26} style={{ color: 'var(--primary-gold)' }} />
-          <span>TRADE MACHINE</span>
+          <span>BYBIT TRADE MACHINE</span>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -80,7 +80,7 @@ export default function Login({ onLoginSuccess }) {
           </div>
 
           {error && (
-            <div style={{ color: 'var(--red-binance)', fontSize: '12px', backgroundColor: 'var(--red-binance-light)', padding: '8px', borderRadius: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <div style={{ color: 'var(--red-bybit)', fontSize: '12px', backgroundColor: 'var(--red-bybit-light)', padding: '8px', borderRadius: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
               <AlertTriangle size={14} />
               <span>{error}</span>
             </div>
