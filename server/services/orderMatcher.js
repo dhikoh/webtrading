@@ -154,44 +154,117 @@ class OrderMatcher {
   connectWebSocket(symbol, type) {
     const stream = this.activeStreams.get(symbol);
     
-    // Using Binance Combined Streams to multiplex trade, kline, depth, and 24h ticker updates
+    // Connect to Bybit's public websocket (which is 100% unblocked globally by cloud IPs)
     const url = type === 'spot'
-      ? `wss://stream.binance.com:9443/stream?streams=${symbol}@trade/${symbol}@kline_1m/${symbol}@depth20@100ms/${symbol}@ticker`
-      : `wss://fstream.binance.com/stream?streams=${symbol}@aggTrade/${symbol}@kline_1m/${symbol}@depth20@100ms/${symbol}@ticker`;
+      ? `wss://stream.bybit.com/v5/public/spot`
+      : `wss://stream.bybit.com/v5/public/linear`;
 
-    console.log(`Connecting matching engine WS (Combined): ${url}`);
+    console.log(`Connecting matching engine WS via Bybit (${type}): ${url} for ${symbol.toUpperCase()}`);
     const ws = new WebSocket(url);
+
+    ws.on('open', () => {
+      console.log(`[Bybit WS Opened] Subscribing topics for ${symbol.toUpperCase()} (${type})`);
+      const subPayload = JSON.stringify({
+        op: 'subscribe',
+        args: [
+          `publicTrade.${symbol.toUpperCase()}`,
+          `kline.1.${symbol.toUpperCase()}`,
+          `orderbook.50.${symbol.toUpperCase()}`,
+          `tickers.${symbol.toUpperCase()}`
+        ]
+      });
+      ws.send(subPayload);
+    });
 
     ws.on('message', async (data) => {
       try {
         const payload = JSON.parse(data);
-        const streamName = payload.stream;
+        const topic = payload.topic;
         const tick = payload.data;
-        if (!streamName || !tick) return;
+        if (!topic || !tick) return;
 
-        // Process matching engine trades logic
-        if (streamName.endsWith('@trade') || streamName.endsWith('@aggTrade')) {
-          const price = parseFloat(tick.p);
-          this.latestPrices[type][symbol.toUpperCase()] = price;
-          await this.matchOrdersForSymbol(symbol.toUpperCase(), price, type);
+        // 1. Handle trades to trigger the internal order matching engine
+        if (topic.startsWith('publicTrade.')) {
+          const latestTrade = tick[0];
+          if (latestTrade) {
+            const price = parseFloat(latestTrade.p);
+            this.latestPrices[type][symbol.toUpperCase()] = price;
+            await this.matchOrdersForSymbol(symbol.toUpperCase(), price, type);
+
+            // Relay trade to client in expected Binance @trade format
+            if (this.wsServer) {
+              const relayMsg = JSON.stringify({
+                type: 'BINANCE_RELAY',
+                stream: `${symbol.toLowerCase()}@trade`,
+                marketType: type,
+                data: {
+                  p: latestTrade.p,
+                  q: latestTrade.q,
+                  t: latestTrade.T
+                }
+              });
+              this.relayToSubscribedClients(symbol.toUpperCase(), type, relayMsg);
+            }
+          }
         }
 
-        // Relay to all client browsers subscribed to this viewport
-        if (this.wsServer) {
-          const relayMsg = JSON.stringify({
-            type: 'BINANCE_RELAY',
-            stream: streamName,
-            marketType: type,
-            data: tick
-          });
+        // 2. Handle klines - format to Binance stream kline format
+        else if (topic.startsWith('kline.1.')) {
+          const kline = tick[0];
+          if (kline && this.wsServer) {
+            const relayMsg = JSON.stringify({
+              type: 'BINANCE_RELAY',
+              stream: `${symbol.toLowerCase()}@kline_1m`,
+              marketType: type,
+              data: {
+                k: {
+                  t: kline.start,
+                  o: kline.open,
+                  h: kline.high,
+                  l: kline.low,
+                  c: kline.close,
+                  v: kline.volume
+                }
+              }
+            });
+            this.relayToSubscribedClients(symbol.toUpperCase(), type, relayMsg);
+          }
+        }
 
-          this.wsServer.clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN &&
-                client.activeSymbol === symbol.toUpperCase() &&
-                client.activeMarketType === type) {
-              client.send(relayMsg);
-            }
-          });
+        // 3. Handle Order Book depth - format to Binance stream depth format
+        else if (topic.startsWith('orderbook.')) {
+          if (this.wsServer) {
+            const relayMsg = JSON.stringify({
+              type: 'BINANCE_RELAY',
+              stream: `${symbol.toLowerCase()}@depth20@100ms`,
+              marketType: type,
+              data: {
+                a: tick.a || [],
+                b: tick.b || []
+              }
+            });
+            this.relayToSubscribedClients(symbol.toUpperCase(), type, relayMsg);
+          }
+        }
+
+        // 4. Handle 24h Ticker statistics - format to Binance stream ticker format
+        else if (topic.startsWith('tickers.')) {
+          const last = parseFloat(tick.lastPrice || tick.last_price);
+          const prev = parseFloat(tick.prevPrice24h || tick.prev_price_24h || tick.lastPrice);
+          const changePct = prev ? ((last - prev) / prev) * 100 : 0.00;
+
+          if (this.wsServer) {
+            const relayMsg = JSON.stringify({
+              type: 'BINANCE_RELAY',
+              stream: `${symbol.toLowerCase()}@ticker`,
+              marketType: type,
+              data: {
+                c: tick.lastPrice || tick.last_price,
+                P: changePct.toFixed(2)
+              }
+            });
+            this.relayToSubscribedClients(symbol.toUpperCase(), type, relayMsg);
+          }
         }
       } catch (err) {
         // Suppress json parsing errors
@@ -212,6 +285,18 @@ class OrderMatcher {
 
     if (type === 'spot') stream.spotWs = ws;
     if (type === 'futures') stream.futuresWs = ws;
+  }
+
+  // Broadcast helper to target users watching this specific viewport
+  relayToSubscribedClients(symbol, type, message) {
+    if (!this.wsServer) return;
+    this.wsServer.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN &&
+          client.activeSymbol === symbol &&
+          client.activeMarketType === type) {
+        client.send(message);
+      }
+    });
   }
 
   // High-performance matching engine execution for a specific ticker price update

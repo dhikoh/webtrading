@@ -1,11 +1,9 @@
-// Using Node's native built-in fetch API
-
 let cachedSpotInfo = null;
 let cachedFuturesInfo = null;
 let lastCacheTime = 0;
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
-// Fetch Spot symbols info
+// Fetch Spot symbols info via Bybit V5
 export const fetchSpotExchangeInfo = async () => {
   const now = Date.now();
   if (cachedSpotInfo && (now - lastCacheTime < CACHE_TTL)) {
@@ -13,33 +11,30 @@ export const fetchSpotExchangeInfo = async () => {
   }
 
   try {
-    const res = await fetch('https://api.binance.com/api/v3/exchangeInfo');
-    if (!res.ok) throw new Error('Failed to fetch Binance Spot exchange info');
+    const res = await fetch('https://api.bybit.com/v5/market/instruments-info?category=spot');
+    if (!res.ok) throw new Error('Failed to fetch Bybit Spot exchange info');
     const data = await res.json();
 
+    if (data.retCode !== 0 || !data.result || !data.result.list) {
+      throw new Error(`Bybit returned error: ${data.retMsg}`);
+    }
+
     // Map into simplified records
-    const symbols = data.symbols
-      .filter(s => s.status === 'TRADING')
+    const symbols = data.result.list
+      .filter(s => s.status === 'Trading')
       .map(s => {
-        const priceFilter = s.filters.find(f => f.filterType === 'PRICE_FILTER');
-        const lotSize = s.filters.find(f => f.filterType === 'LOT_SIZE');
-
-        const tickSize = priceFilter ? parseFloat(priceFilter.tickSize) : 0.00000001;
-        const stepSize = lotSize ? parseFloat(lotSize.stepSize) : 0.00000001;
-
-        // Calculate decimals precision from size (e.g. 0.01 -> 2, 0.0001 -> 4)
-        const pricePrecision = Math.max(0, Math.round(-Math.log10(tickSize)));
-        const qtyPrecision = Math.max(0, Math.round(-Math.log10(stepSize)));
+        const pricePrecision = parseInt(s.priceFilter?.tickSize ? Math.max(0, Math.round(-Math.log10(parseFloat(s.priceFilter.tickSize)))) : '2');
+        const qtyPrecision = parseInt(s.lotSizeFilter?.basePrecision ? Math.max(0, Math.round(-Math.log10(parseFloat(s.lotSizeFilter.basePrecision)))) : '4');
 
         return {
           symbol: s.symbol,
-          baseAsset: s.baseAsset,
-          quoteAsset: s.quoteAsset,
-          status: s.status,
+          baseAsset: s.baseCoin,
+          quoteAsset: s.quoteCoin,
+          status: 'TRADING',
           pricePrecision,
           qtyPrecision,
-          tickSize,
-          stepSize
+          tickSize: parseFloat(s.priceFilter?.tickSize || '0.01'),
+          stepSize: parseFloat(s.lotSizeFilter?.basePrecision || '0.00001')
         };
       });
 
@@ -47,12 +42,12 @@ export const fetchSpotExchangeInfo = async () => {
     lastCacheTime = now;
     return symbols;
   } catch (error) {
-    console.error('Error fetching Spot ExchangeInfo:', error.message);
-    return cachedSpotInfo || []; // fallback to cache if available
+    console.error('Error fetching Spot ExchangeInfo via Bybit:', error.message);
+    return cachedSpotInfo || [];
   }
 };
 
-// Fetch Futures symbols info
+// Fetch Futures symbols info via Bybit V5
 export const fetchFuturesExchangeInfo = async () => {
   const now = Date.now();
   if (cachedFuturesInfo && (now - lastCacheTime < CACHE_TTL)) {
@@ -60,32 +55,30 @@ export const fetchFuturesExchangeInfo = async () => {
   }
 
   try {
-    const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
-    if (!res.ok) throw new Error('Failed to fetch Binance Futures exchange info');
+    const res = await fetch('https://api.bybit.com/v5/market/instruments-info?category=linear');
+    if (!res.ok) throw new Error('Failed to fetch Bybit Futures exchange info');
     const data = await res.json();
 
+    if (data.retCode !== 0 || !data.result || !data.result.list) {
+      throw new Error(`Bybit returned error: ${data.retMsg}`);
+    }
+
     // Map into simplified records
-    const symbols = data.symbols
-      .filter(s => s.status === 'TRADING')
+    const symbols = data.result.list
+      .filter(s => s.status === 'Trading' && s.quoteCoin === 'USDT') // Linear USDT Perpetual Contracts
       .map(s => {
-        const priceFilter = s.filters.find(f => f.filterType === 'PRICE_FILTER');
-        const lotSize = s.filters.find(f => f.filterType === 'LOT_SIZE');
-
-        const tickSize = priceFilter ? parseFloat(priceFilter.tickSize) : 0.00000001;
-        const stepSize = lotSize ? parseFloat(lotSize.stepSize) : 0.00000001;
-
-        const pricePrecision = Math.max(0, Math.round(-Math.log10(tickSize)));
-        const qtyPrecision = Math.max(0, Math.round(-Math.log10(stepSize)));
+        const pricePrecision = parseInt(s.priceFilter?.tickSize ? Math.max(0, Math.round(-Math.log10(parseFloat(s.priceFilter.tickSize)))) : '2');
+        const qtyPrecision = parseInt(s.lotSizeFilter?.qtyStep ? Math.max(0, Math.round(-Math.log10(parseFloat(s.lotSizeFilter.qtyStep)))) : '3');
 
         return {
           symbol: s.symbol,
-          baseAsset: s.baseAsset,
-          quoteAsset: s.quoteAsset, // should be USDT for USD-M Perpetual
-          status: s.status,
+          baseAsset: s.baseCoin,
+          quoteAsset: s.quoteCoin,
+          status: 'TRADING',
           pricePrecision,
           qtyPrecision,
-          tickSize,
-          stepSize
+          tickSize: parseFloat(s.priceFilter?.tickSize || '0.1'),
+          stepSize: parseFloat(s.lotSizeFilter?.qtyStep || '0.001')
         };
       });
 
@@ -93,7 +86,7 @@ export const fetchFuturesExchangeInfo = async () => {
     lastCacheTime = now;
     return symbols;
   } catch (error) {
-    console.error('Error fetching Futures ExchangeInfo:', error.message);
+    console.error('Error fetching Futures ExchangeInfo via Bybit:', error.message);
     return cachedFuturesInfo || [];
   }
 };

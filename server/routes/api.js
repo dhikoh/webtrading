@@ -75,18 +75,42 @@ router.get('/market/klines', async (req, res) => {
       return res.status(400).json({ error: 'Symbol is required' });
     }
     
-    const baseUrl = marketType === 'futures'
-      ? 'https://fapi.binance.com/fapi/v1/klines'
-      : 'https://api.binance.com/api/v3/klines';
-      
-    const url = `${baseUrl}?symbol=${symbol.toUpperCase()}&interval=${interval || '1m'}&limit=${limit || 300}`;
+    // Map intervals from Binance format to Bybit format
+    const intervalMap = {
+      '1m': '1',
+      '5m': '5',
+      '15m': '15',
+      '1h': '60',
+      '1d': 'D'
+    };
+    const bybitInterval = intervalMap[interval] || '1';
+    const category = marketType === 'futures' ? 'linear' : 'spot';
+    
+    const url = `https://api.bybit.com/v5/market/kline?category=${category}&symbol=${symbol.toUpperCase()}&interval=${bybitInterval}&limit=${limit || 300}`;
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Failed to fetch from Binance: ${response.statusText}`);
+      throw new Error(`Failed to fetch from Bybit: ${response.statusText}`);
     }
     
     const data = await response.json();
-    res.json(data);
+    if (data.retCode !== 0 || !data.result || !data.result.list) {
+      throw new Error(`Bybit error: ${data.retMsg}`);
+    }
+
+    // Convert Bybit list [[start, open, high, low, close, volume, turnover], ...] 
+    // to expected frontend Lightweight Charts format: chronological array of [time, open, high, low, close, volume]
+    const formattedKlines = data.result.list.map(k => [
+      parseInt(k[0]), // start time in ms
+      parseFloat(k[1]), // open
+      parseFloat(k[2]), // high
+      parseFloat(k[3]), // low
+      parseFloat(k[4]), // close
+      parseFloat(k[5]), // volume
+      parseFloat(k[6]), // turnover
+      parseInt(k[0]) + (parseInt(bybitInterval) * 60000 || 60000) // close time
+    ]).reverse(); // Bybit returns reverse order, we need chronological
+
+    res.json(formattedKlines);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
