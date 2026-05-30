@@ -1,0 +1,357 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------
+// AUTHENTICATION, MEMBERSHIP & MULTI-TENANCY
+// ----------------------------------------------------
+model User {
+  id             String         @id @default(uuid())
+  email          String         @unique
+  username       String         @unique
+  name           String
+  passwordHash   String
+  avatarUrl      String?
+  role           String         @default("MEMBER") // SUPER_ADMIN, MEMBER
+  status         String         @default("ACTIVE") // ACTIVE, SUSPENDED
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions       Session[]
+  auditLogs      AuditLog[]
+  analyses       Analysis[]
+  notifications  Notification[]
+  portfolioState PortfolioState?
+  tradeJournals  TradeJournal[]
+
+  @@index([tenantId])
+}
+
+model Tenant {
+  id             String         @id @default(uuid())
+  name           String
+  createdAt      DateTime       @default(now())
+  users          User[]
+  subscriptions  Subscription[]
+  analyses       Analysis[]
+  portfolioStates PortfolioState[]
+}
+
+model Subscription {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tier      String   @default("FREE") // FREE, BASIC, PRO, ENTERPRISE
+  status    String   @default("ACTIVE") // ACTIVE, EXPIRED, SUSPENDED
+  startDate DateTime @default(now())
+  endDate   DateTime
+
+  @@index([tenantId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ----------------------------------------------------
+// DYNAMIC STRATEGY REGISTRY & SYSTEM CONFIGURATION
+// ----------------------------------------------------
+model StrategyRegistry {
+  id             String            @id @default(uuid())
+  name           String            @unique
+  description    String
+  isActive       Boolean           @default(true)
+  versions       StrategyVersion[]
+}
+
+model StrategyVersion {
+  id             String            @id @default(uuid())
+  strategyId     String
+  strategy       StrategyRegistry  @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  versionString  String            // e.g. "v1.0.0"
+  isActive       Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  
+  minConfidence  Int               @default(61)
+  minRiskReward  Float             @default(1.5)
+  maxDrawdownLmt Float             @default(15.0)
+  
+  parameters     StrategyParameter[]
+  weights        FeatureWeight[]
+  featureWeightVersions FeatureWeightVersion[]
+  analyses       Analysis[]
+  benchmarks     StrategyBenchmark[]
+  backtests      BacktestResult[]
+
+  @@index([strategyId])
+}
+
+model StrategyParameter {
+  id             String            @id @default(uuid())
+  versionId      String
+  version        StrategyVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  paramKey       String            
+  paramValue     String            
+
+  @@index([versionId])
+}
+
+model FeatureWeight {
+  id             String            @id @default(uuid())
+  versionId      String
+  version        StrategyVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  featureName    String            
+  weightValue    Float             
+
+  @@index([versionId])
+}
+
+model FeatureWeightVersion {
+  id                String            @id @default(uuid())
+  strategyVersionId String
+  strategyVersion   StrategyVersion   @relation(fields: [strategyVersionId], references: [id], onDelete: Cascade)
+  weightsJson       String            
+  createdAt         DateTime          @default(now())
+
+  @@index([strategyVersionId])
+}
+
+// ----------------------------------------------------
+// ANALYSIS ENGINE, LIFE CYCLE, & REPLAY SNAPSHOTS
+// ----------------------------------------------------
+model Analysis {
+  id              String         @id @default(uuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId        String
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  strategyVerId   String
+  strategyVersion StrategyVersion @relation(fields: [strategyVerId], references: [id])
+  
+  asset           String         
+  timeframe       String         
+  sourceType      String         
+  screenshotUrl   String?        
+  
+  signal          String         
+  grade           String         
+  confidence      Int            
+  marketRegime    String         
+  marketQuality   Int            
+  liquidityRisk   String         
+  
+  entryPrice      Float?
+  stopLoss        Float?
+  tp1             Float?
+  tp2             Float?
+  tp3             Float?
+  riskReward      Float?
+  
+  aiReasons       String?        
+  aiRisks         String?
+  createdAt       DateTime       @default(now())
+  
+  scoreComponents AnalysisScoreComponent[]
+  lifecycle       SignalLifecycle?
+  replaySnapshot  ReplaySnapshot?
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([strategyVerId])
+}
+
+model AnalysisScoreComponent {
+  id             String      @id @default(uuid())
+  analysisId     String
+  analysis       Analysis    @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  componentName  String      
+  weight         Float
+  rawScore       Float       
+  weightedScore  Float       
+  isCriteriaMet  Boolean
+
+  @@index([analysisId])
+}
+
+model ReplaySnapshot {
+  id             String      @id @default(uuid())
+  analysisId     String      @unique
+  analysis       Analysis    @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  storagePath    String      
+  compressed     Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+}
+
+model SignalLifecycle {
+  id             String      @id @default(uuid())
+  analysisId     String      @unique
+  analysis       Analysis    @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  currentState   String      // PENDING, EXPIRED, TRIGGERED, INVALIDATED, EXECUTED, CLOSED
+  expirationTime DateTime
+  expirationCandleCount Int
+  triggerPrice   Float?
+  outcomeStatus  String?     
+  outcomePnL     Float?      
+  
+  predictedRR          Float?
+  actualRR             Float?
+  expectedHoldingTime  Float?      // expected holding time in hours
+  actualHoldingTime    Float?      // actual holding time in hours
+  decayHistory         String?     // JSON decay history
+  updatedAt            DateTime    @updatedAt
+}
+
+// ----------------------------------------------------
+// PORTFOLIO, TELEMETRY, CALIBRATION, & INTEL
+// ----------------------------------------------------
+model PortfolioState {
+  id             String      @id @default(uuid())
+  userId         String      @unique
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  currentCapital Float
+  allocatedRisk  Float       @default(0.0) 
+  activeTrades   Int         @default(0)
+  updatedAt      DateTime    @updatedAt
+
+  @@index([tenantId])
+}
+
+model ConfidenceCalibration {
+  id                     String   @id @default(uuid())
+  confidenceMin          Int      
+  confidenceMax          Int      
+  totalSignals           Int      @default(0)
+  wins                   Int      @default(0)
+  losses                 Int      @default(0)
+  actualWinRate          Float    @default(0.0)
+  
+  avgPredictedRR         Float    @default(0.0)
+  avgActualRR            Float    @default(0.0)
+  avgExpectedHoldingTime Float    @default(0.0) // in hours
+  avgActualHoldingTime   Float    @default(0.0) // in hours
+  updatedAt              DateTime @updatedAt
+}
+
+model AssetProfile {
+  id                 String   @id @default(uuid())
+  symbol             String   @unique 
+  averageATR         Float
+  averageVolume      Float
+  averageTrendLength Float
+  averagePullback    Float
+  correlationGroup   String
+  updatedAt          DateTime @updatedAt
+}
+
+model StrategyBenchmark {
+  id                String   @id @default(uuid())
+  strategyVersionId String
+  strategyVersion   StrategyVersion @relation(fields: [strategyVersionId], references: [id], onDelete: Cascade)
+  totalSignals      Int      @default(0)
+  wins              Int      @default(0)
+  losses            Int      @default(0)
+  winRate           Float    @default(0.0)
+  profitFactor      Float    @default(0.0)
+  maxDrawdown       Float    @default(0.0)
+  sharpeRatio       Float    @default(0.0)
+  updatedAt         DateTime @updatedAt
+
+  @@index([strategyVersionId])
+}
+
+model BacktestResult {
+  id                String   @id @default(uuid())
+  strategyVersionId String
+  strategyVersion   StrategyVersion @relation(fields: [strategyVersionId], references: [id], onDelete: Cascade)
+  asset             String
+  timeframe         String
+  candleCount       Int
+  totalTrades       Int
+  winRate           Float
+  profitFactor      Float
+  maxDrawdown       Float
+  sharpeRatio       Float
+  createdAt         DateTime @default(now())
+
+  @@index([strategyVersionId])
+}
+
+model FeaturePerformance {
+  id                String   @id @default(uuid())
+  featureName       String   @unique 
+  timesTriggered    Int      @default(0)
+  wins              Int      @default(0)
+  losses            Int      @default(0)
+  contributionScore Float    @default(0.0)
+  updatedAt         DateTime @updatedAt
+}
+
+model DataSourceReliability {
+  id             String      @id @default(uuid())
+  sourceName     String      @unique 
+  totalQueries   Int         @default(0)
+  successQueries Int         @default(0)
+  failureQueries Int         @default(0)
+  latencyMs      Int         @default(0) 
+  updatedAt      DateTime    @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model TradeJournal {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId      String
+  asset         String
+  type          String
+  entryPrice    Float
+  exitPrice     Float?
+  positionSize  Float
+  profitLoss    Float    @default(0.0)
+  outcomeStatus String   @default("PENDING")
+  notes         String?
+  entryTime     DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
