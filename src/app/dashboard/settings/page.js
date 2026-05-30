@@ -116,6 +116,16 @@ export default function SettingsPage() {
             </h3>
             
             <form onSubmit={handleUpdatePassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Accessibility/WCAG Username Field for Password Autocomplete Autodetect */}
+              <input 
+                type="text" 
+                name="username" 
+                value={email} 
+                readOnly 
+                style={{ display: 'none' }} 
+                autoComplete="username" 
+              />
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Kata Sandi Baru</label>
                 <input 

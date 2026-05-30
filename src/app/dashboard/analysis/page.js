@@ -31,9 +31,36 @@ export default function AnalysisPage() {
     setFileName(file.name);
     const reader = new FileReader();
     reader.onloadend = () => {
-      setFilePreview(reader.result); // Stores full data URL for preview display
-      const base64String = reader.result.split(',')[1];
-      setFileBase64(base64String);
+      const img = new Image();
+      img.onload = () => {
+        // Premium Client-Side Image Compressor & Downscaler
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDimension = 1200;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to highly optimized JPEG to stay safely within Next.js API limits (~150KB)
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        setFilePreview(compressedDataUrl);
+        const base64String = compressedDataUrl.split(',')[1];
+        setFileBase64(base64String);
+      };
+      img.src = reader.result;
     };
     reader.readAsDataURL(file);
   };
