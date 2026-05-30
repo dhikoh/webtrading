@@ -25,6 +25,7 @@ export default function App() {
   const [latestPrice, setLatestPrice] = useState(null);
   const [priceChangePercent, setPriceChangePercent] = useState('0.0');
   const [floatingPnLs, setFloatingPnLs] = useState({}); // positionId -> { markPrice, unrealizedPnL }
+  const [priceCache, setPriceCache] = useState({}); // symbol -> { price, changePct }
   
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isWsConnected, setIsWsConnected] = useState(false);
@@ -106,8 +107,19 @@ export default function App() {
           else if (data.type === 'BYBIT_RELAY' && data.stream.includes('@ticker')) {
             const ticker = data.data;
             if (ticker) {
-              setLatestPrice(parseFloat(ticker.c));
-              setPriceChangePercent(parseFloat(ticker.P).toFixed(2));
+              const tickerPrice = parseFloat(ticker.c);
+              const tickerChange = parseFloat(ticker.P).toFixed(2);
+              setLatestPrice(tickerPrice);
+              setPriceChangePercent(tickerChange);
+
+              // Update global price cache for NAV and CoinList
+              const streamSymbol = data.stream.split('@')[0].toUpperCase();
+              if (streamSymbol) {
+                setPriceCache(prev => ({
+                  ...prev,
+                  [streamSymbol]: { price: tickerPrice, changePct: tickerChange }
+                }));
+              }
             }
           }
 
@@ -115,7 +127,17 @@ export default function App() {
           else if (data.type === 'BYBIT_RELAY' && data.stream.includes('@trade')) {
             const trade = data.data;
             if (trade && trade.p) {
-              setLatestPrice(parseFloat(trade.p));
+              const tradePrice = parseFloat(trade.p);
+              setLatestPrice(tradePrice);
+
+              // Update global price cache
+              const streamSymbol = data.stream.split('@')[0].toUpperCase();
+              if (streamSymbol) {
+                setPriceCache(prev => ({
+                  ...prev,
+                  [streamSymbol]: { ...prev[streamSymbol], price: tradePrice }
+                }));
+              }
             }
           }
         } catch (error) {
@@ -229,6 +251,7 @@ export default function App() {
         isWsConnected={isWsConnected}
         lang={lang}
         setLang={setLang}
+        priceCache={priceCache}
       />
 
       {/* Main Core Columns Workspace Grid */}
@@ -240,6 +263,8 @@ export default function App() {
           marketType={marketType}
           onSelectSymbol={handleSelectSymbol}
           lang={lang}
+          socket={socket}
+          priceCache={priceCache}
         />
 
         {/* Center Top: Technical Chart */}
@@ -279,6 +304,7 @@ export default function App() {
           onRefresh={handleRefreshAccount}
           floatingPnLs={floatingPnLs}
           lang={lang}
+          priceCache={priceCache}
         />
 
       </main>

@@ -9,7 +9,8 @@ export default function BottomTabs({
   openOrders, 
   onRefresh, 
   floatingPnLs,
-  lang = 'id'
+  lang = 'id',
+  priceCache = {}
 }) {
   const [activeTab, setActiveTab] = useState('positions'); // 'positions' | 'orders' | 'balances' | 'admin'
   const [transferDir, setTransferDir] = useState('SPOT_TO_FUTURES');
@@ -28,6 +29,10 @@ export default function BottomTabs({
   const [adminErr, setAdminErr] = useState('');
   const [adminOk, setAdminOk] = useState('');
   const [adminLoading, setAdminLoading] = useState(false);
+
+  // Trade History states
+  const [tradeHistory, setTradeHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Translations
   const t = {
@@ -98,7 +103,12 @@ export default function BottomTabs({
       thUserId: 'ID Pengguna',
       thUsername: 'Username',
       thRole: 'Peran',
-      thBalancesDetails: 'Detail Saldo'
+      thBalancesDetails: 'Detail Saldo',
+      historyTab: 'Riwayat Trade',
+      noHistory: 'Belum ada riwayat trading.',
+      thTime: 'Waktu',
+      thRealizedPnL: 'PnL Terealisasi',
+      thTradeType: 'Tipe Pasar'
     },
     en: {
       positions: 'Positions',
@@ -167,7 +177,12 @@ export default function BottomTabs({
       thUserId: 'User ID',
       thUsername: 'Username',
       thRole: 'Role',
-      thBalancesDetails: 'Balances Details'
+      thBalancesDetails: 'Balances Details',
+      historyTab: 'Trade History',
+      noHistory: 'No trade history yet.',
+      thTime: 'Time',
+      thRealizedPnL: 'Realized PnL',
+      thTradeType: 'Market Type'
     }
   }[lang];
 
@@ -175,7 +190,33 @@ export default function BottomTabs({
     if (activeTab === 'admin' && user?.role === 'admin') {
       loadAdminData();
     }
+    if (activeTab === 'history') {
+      loadTradeHistory();
+    }
   }, [activeTab, user]);
+
+  // Helper to get live price for an asset from priceCache
+  const getAssetPrice = (asset) => {
+    const sym = `${asset}USDT`;
+    if (priceCache[sym] && priceCache[sym].price) return priceCache[sym].price;
+    return 0;
+  };
+
+  const loadTradeHistory = async () => {
+    const token = localStorage.getItem('trade_token');
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/trade/history`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setTradeHistory(Array.isArray(data) ? data : (data.trades || []));
+    } catch (err) {
+      console.error('Failed to load trade history:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const loadAdminData = async () => {
     const token = localStorage.getItem('trade_token');
@@ -316,6 +357,13 @@ export default function BottomTabs({
           style={{ color: 'var(--green-bybit)', borderBottomColor: activeTab === 'pnl' ? 'var(--green-bybit)' : 'transparent' }}
         >
           {t.pnlTab}
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('history')}
+        >
+          <FileText size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'text-bottom' }} />
+          {t.historyTab}
         </button>
         
         {user?.role === 'admin' && (
@@ -706,177 +754,164 @@ export default function BottomTabs({
           </div>
         )}
 
-        {/* 5. PNL & ASSET PERFORMANCE REPORTS */}
+        {/* 5. TRADE HISTORY */}
+        {activeTab === 'history' && (
+          historyLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>Loading...</div>
+          ) : tradeHistory.length === 0 ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>{t.noHistory}</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                    <th style={{ padding: '6px', textAlign: 'left' }}>{t.thTime}</th>
+                    <th style={{ padding: '6px', textAlign: 'left' }}>{t.thSymbol}</th>
+                    <th style={{ padding: '6px', textAlign: 'left' }}>{t.thTradeType}</th>
+                    <th style={{ padding: '6px', textAlign: 'left' }}>{t.thSide}</th>
+                    <th style={{ padding: '6px', textAlign: 'right' }}>{t.thPrice}</th>
+                    <th style={{ padding: '6px', textAlign: 'right' }}>{t.thQty}</th>
+                    <th style={{ padding: '6px', textAlign: 'right' }}>{t.thRealizedPnL}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tradeHistory.map((trade, idx) => {
+                    const pnl = parseFloat(trade.realizedPnL || 0);
+                    const pnlColor = pnl > 0 ? 'var(--green-bybit)' : pnl < 0 ? 'var(--red-bybit)' : 'var(--text-muted)';
+                    const sideColor = trade.side === 'BUY' ? 'var(--green-bybit)' : 'var(--red-bybit)';
+                    return (
+                      <tr key={trade.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                        <td style={{ padding: '6px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                          {new Date(trade.createdAt).toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td style={{ padding: '6px', fontWeight: 600, color: 'var(--text-active)' }}>{trade.symbol}</td>
+                        <td style={{ padding: '6px' }}>
+                          <span style={{ fontSize: '9px', padding: '1px 4px', borderRadius: '2px', backgroundColor: trade.tradeType === 'FUTURES' ? 'rgba(168,85,247,0.15)' : 'rgba(240,185,11,0.15)', color: trade.tradeType === 'FUTURES' ? '#a855f7' : 'var(--primary-gold)', fontWeight: 700 }}>
+                            {trade.tradeType}
+                          </span>
+                        </td>
+                        <td style={{ padding: '6px', fontWeight: 600, color: sideColor }}>{trade.side}</td>
+                        <td style={{ padding: '6px', textAlign: 'right', fontFamily: 'monospace' }}>{parseFloat(trade.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '6px', textAlign: 'right', fontFamily: 'monospace' }}>{parseFloat(trade.quantity).toFixed(4)}</td>
+                        <td style={{ padding: '6px', textAlign: 'right', fontFamily: 'monospace', color: pnlColor, fontWeight: 600 }}>
+                          {pnl > 0 ? '+' : ''}{pnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDT
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+
+        {/* 6. PNL & ASSET PERFORMANCE REPORTS */}
         {activeTab === 'pnl' && (() => {
           const spotBalances = wallets.filter(w => w.walletType === 'spot');
           const futuresBalances = wallets.filter(w => w.walletType === 'futures');
 
           const totalSpotValue = spotBalances.reduce((sum, w) => {
             const val = parseFloat(w.balance || 0);
-            let multiplier = 1.0;
-            if (w.asset === 'BTC') multiplier = 74000;
-            else if (w.asset === 'ETH') multiplier = 2025;
-            else if (w.asset === 'SOL') multiplier = 146;
-            return sum + (val * multiplier);
+            if (w.asset === 'USDT' || w.asset === 'USDC') return sum + val;
+            return sum + (val * getAssetPrice(w.asset));
           }, 0);
 
           const totalFuturesValue = futuresBalances.reduce((sum, w) => {
             const val = parseFloat(w.balance || 0);
-            let multiplier = 1.0;
-            if (w.asset === 'BTC') multiplier = 74000;
-            else if (w.asset === 'ETH') multiplier = 2025;
-            else if (w.asset === 'SOL') multiplier = 146;
-            return sum + (val * multiplier);
+            if (w.asset === 'USDT' || w.asset === 'USDC') return sum + val;
+            return sum + (val * getAssetPrice(w.asset));
           }, 0);
 
           const totalNAV = totalSpotValue + totalFuturesValue;
-          const baseRatio = 1.3642;
-          const startingCapital = totalNAV / baseRatio;
-          const cumPnLVal = totalNAV - startingCapital;
 
-          const pnl7d = cumPnLVal * 0.12;
-          const pnl30d = cumPnLVal * 0.38;
-          const pnl90d = cumPnLVal * 0.78;
+          // Calculate real PnL from trade history
+          const now = Date.now();
+          const ms7d = 7 * 24 * 60 * 60 * 1000;
+          const ms30d = 30 * 24 * 60 * 60 * 1000;
+          const ms90d = 90 * 24 * 60 * 60 * 1000;
 
-          const cumPct = 36.42;
-          const pct7d = 3.42;
-          const pct30d = 12.85;
-          const pct90d = 28.91;
+          const computePnL = (trades, sinceDays) => {
+            const cutoff = now - sinceDays;
+            return trades.filter(tr => new Date(tr.createdAt).getTime() >= cutoff)
+              .reduce((sum, tr) => sum + parseFloat(tr.realizedPnL || 0), 0);
+          };
+
+          const allTrades = tradeHistory || [];
+          const cumPnLVal = allTrades.reduce((sum, tr) => sum + parseFloat(tr.realizedPnL || 0), 0);
+          const pnl7d = computePnL(allTrades, ms7d);
+          const pnl30d = computePnL(allTrades, ms30d);
+          const pnl90d = computePnL(allTrades, ms90d);
+
+          const initialCapital = totalNAV - cumPnLVal;
+          const cumPct = initialCapital > 0 ? ((cumPnLVal / initialCapital) * 100).toFixed(2) : '0.00';
+          const pct7d = initialCapital > 0 ? ((pnl7d / initialCapital) * 100).toFixed(2) : '0.00';
+          const pct30d = initialCapital > 0 ? ((pnl30d / initialCapital) * 100).toFixed(2) : '0.00';
+          const pct90d = initialCapital > 0 ? ((pnl90d / initialCapital) * 100).toFixed(2) : '0.00';
 
           const spotRatio = totalNAV > 0 ? (totalSpotValue / totalNAV) * 100 : 50;
           const futuresRatio = totalNAV > 0 ? (totalFuturesValue / totalNAV) * 100 : 50;
+
+          const fmtPnL = (val) => {
+            const s = val >= 0 ? '+' : '';
+            return { sign: s, color: val >= 0 ? 'var(--green-bybit)' : 'var(--red-bybit)', text: `${s}${val.toLocaleString('en-US', { maximumFractionDigits: 2 })}` };
+          };
 
           return (
             <div style={{ color: 'var(--text-active)', padding: '4px' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }}>
                 
-                {/* ASET ANALYSIS */}
-                <div style={{
-                  flex: '1 1 300px',
-                  backgroundColor: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.04)',
-                  borderRadius: '6px',
-                  padding: '16px'
-                }}>
+                <div style={{ flex: '1 1 300px', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '6px', padding: '16px' }}>
                   <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--primary-gold)' }}>{t.allocationReport}</h4>
                   <div style={{ fontSize: '24px', fontWeight: 'bold', margin: '4px 0 12px 0' }}>
-                    {totalNAV.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>USDT (NAV)</span>
+                    {totalNAV.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>USDT (NAV)</span>
                   </div>
-
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', marginBottom: '6px' }}>
-                    <span style={{ color: 'var(--primary-gold)' }}>{t.spotAccount}: {totalSpotValue.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT</span>
-                    <span style={{ color: '#a855f7' }}>{t.futuresAccount}: {totalFuturesValue.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT</span>
+                    <span style={{ color: 'var(--primary-gold)' }}>{t.spotAccount}: {totalSpotValue.toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT</span>
+                    <span style={{ color: '#a855f7' }}>{t.futuresAccount}: {totalFuturesValue.toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT</span>
                   </div>
-
-                  {/* Ratio bar */}
                   <div style={{ height: '8px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '4px', overflow: 'hidden', display: 'flex', marginBottom: '16px' }}>
                     <div style={{ width: `${spotRatio}%`, backgroundColor: 'var(--primary-gold)', height: '100%' }}></div>
                     <div style={{ width: `${futuresRatio}%`, backgroundColor: '#a855f7', height: '100%' }}></div>
                   </div>
-
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '11px' }}>
-                    <div>
-                      <span style={{ color: 'var(--text-muted)' }}>Spot Ratio:</span>
-                      <div style={{ fontWeight: 'bold', fontSize: '13px', marginTop: '2px' }}>{spotRatio.toFixed(1)}%</div>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--text-muted)' }}>Futures Ratio:</span>
-                      <div style={{ fontWeight: 'bold', fontSize: '13px', marginTop: '2px' }}>{futuresRatio.toFixed(1)}%</div>
-                    </div>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Spot Ratio:</span><div style={{ fontWeight: 'bold', fontSize: '13px', marginTop: '2px' }}>{spotRatio.toFixed(1)}%</div></div>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Futures Ratio:</span><div style={{ fontWeight: 'bold', fontSize: '13px', marginTop: '2px' }}>{futuresRatio.toFixed(1)}%</div></div>
                   </div>
                 </div>
 
-                {/* HISTORICAL PNL METRICS */}
-                <div style={{
-                  flex: '1 1 300px',
-                  backgroundColor: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.04)',
-                  borderRadius: '6px',
-                  padding: '16px'
-                }}>
-                  <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--green-bybit)' }}>{t.pnlSummary}</h4>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', margin: '4px 0 4px 0', color: 'var(--green-bybit)' }}>
-                    +{cumPnLVal.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '12px' }}>USDT</span>
+                <div style={{ flex: '1 1 300px', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '6px', padding: '16px' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: fmtPnL(cumPnLVal).color }}>{t.pnlSummary}</h4>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', margin: '4px 0 4px 0', color: fmtPnL(cumPnLVal).color }}>
+                    {fmtPnL(cumPnLVal).text} <span style={{ fontSize: '12px' }}>USDT</span>
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--green-bybit)', fontWeight: 600, marginBottom: '16px' }}>
-                    {t.returnRate} +{cumPct}%
+                  <div style={{ fontSize: '12px', color: fmtPnL(cumPnLVal).color, fontWeight: 600, marginBottom: '16px' }}>
+                    {t.returnRate} {cumPnLVal >= 0 ? '+' : ''}{cumPct}%
                   </div>
-
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-                    {t.pnlHelp}
-                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.5' }}>{t.pnlHelp}</div>
                 </div>
 
               </div>
 
-              {/* PNL ANALYSIS PERIODS GRID */}
               <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--primary-gold)' }}>{t.performanceAnalysis}</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-                
-                {/* 7 Day PnL */}
-                <div style={{
-                  backgroundColor: 'rgba(14,203,129,0.02)',
-                  border: '1px solid rgba(14,203,129,0.1)',
-                  borderRadius: '6px',
-                  padding: '12px'
-                }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.pnl7dLabel}</div>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-bybit)' }}>
-                    +{pnl7d.toLocaleString(lang === 'id' ? 'id-ID' : 'en-US', { maximumFractionDigits: 2 })} USDT
-                  </div>
-                  <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-bybit)', fontWeight: 600 }}>
-                    +{pct7d}%
-                  </div>
-                </div>
-
-                {/* 30 Day PnL */}
-                <div style={{
-                  backgroundColor: 'rgba(14,203,129,0.02)',
-                  border: '1px solid rgba(14,203,129,0.1)',
-                  borderRadius: '6px',
-                  padding: '12px'
-                }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.pnl30dLabel}</div>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-bybit)' }}>
-                    +{pnl30d.toLocaleString(lang === 'id' ? 'id-ID' : 'en-US', { maximumFractionDigits: 2 })} USDT
-                  </div>
-                  <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-bybit)', fontWeight: 600 }}>
-                    +{pct30d}%
-                  </div>
-                </div>
-
-                {/* 90 Day PnL */}
-                <div style={{
-                  backgroundColor: 'rgba(14,203,129,0.02)',
-                  border: '1px solid rgba(14,203,129,0.1)',
-                  borderRadius: '6px',
-                  padding: '12px'
-                }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.pnl90dLabel}</div>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-bybit)' }}>
-                    +{pnl90d.toLocaleString(lang === 'id' ? 'id-ID' : 'en-US', { maximumFractionDigits: 2 })} USDT
-                  </div>
-                  <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-bybit)', fontWeight: 600 }}>
-                    +{pct90d}%
-                  </div>
-                </div>
-
-                {/* Total PnL */}
-                <div style={{
-                  backgroundColor: 'rgba(240,185,11,0.02)',
-                  border: '1px solid rgba(240,185,11,0.1)',
-                  borderRadius: '6px',
-                  padding: '12px'
-                }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.totalCumulative}</div>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--primary-gold)' }}>
-                    +{cumPnLVal.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT
-                  </div>
-                  <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--primary-gold)', fontWeight: 600 }}>
-                    +{cumPct}%
-                  </div>
-                </div>
-
+                {[
+                  { label: t.pnl7dLabel, val: pnl7d, pct: pct7d },
+                  { label: t.pnl30dLabel, val: pnl30d, pct: pct30d },
+                  { label: t.pnl90dLabel, val: pnl90d, pct: pct90d },
+                  { label: t.totalCumulative, val: cumPnLVal, pct: cumPct, isGold: true }
+                ].map((item, idx) => {
+                  const f = fmtPnL(item.val);
+                  const borderColor = item.isGold ? 'rgba(240,185,11,0.1)' : (item.val >= 0 ? 'rgba(14,203,129,0.1)' : 'rgba(234,57,67,0.1)');
+                  const bgColor = item.isGold ? 'rgba(240,185,11,0.02)' : (item.val >= 0 ? 'rgba(14,203,129,0.02)' : 'rgba(234,57,67,0.02)');
+                  const tc = item.isGold ? 'var(--primary-gold)' : f.color;
+                  return (
+                    <div key={idx} style={{ backgroundColor: bgColor, border: `1px solid ${borderColor}`, borderRadius: '6px', padding: '12px' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{item.label}</div>
+                      <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: tc }}>{f.text} USDT</div>
+                      <div style={{ fontSize: '11.5px', marginTop: '4px', color: tc, fontWeight: 600 }}>{item.val >= 0 ? '+' : ''}{item.pct}%</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );

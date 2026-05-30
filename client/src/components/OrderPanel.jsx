@@ -123,7 +123,8 @@ export default function OrderPanel({
         stopPrice: (orderType === 'STOP_LIMIT' || orderType === 'STOP_MARKET') ? parseFloat(stopPrice) : null,
         callbackRate: orderType === 'TRAILING_STOP' ? parseFloat(callbackRate) : null,
         positionSide: marketType === 'futures' ? (side === 'BUY' ? 'LONG' : 'SHORT') : null,
-        reduceOnly: marketType === 'futures' ? reduceOnly : false
+        reduceOnly: marketType === 'futures' ? reduceOnly : false,
+        leverage: marketType === 'futures' ? leverage : undefined
       };
 
       const res = await fetch(`${API_URL}/api/trade/order`, {

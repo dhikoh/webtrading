@@ -4,7 +4,7 @@ import { matcher } from '../services/orderMatcher.js';
 // Place a new Spot or Futures Order
 export const placeOrder = async (req, res) => {
   const userId = req.user.id;
-  const { symbol, marketType, side, type, price, quantity, stopPrice, callbackRate, positionSide, reduceOnly } = req.body;
+  const { symbol, marketType, side, type, price, quantity, stopPrice, callbackRate, positionSide, reduceOnly, leverage: reqLeverage } = req.body;
 
   if (!symbol || !marketType || !side || !type || !quantity) {
     return res.status(400).json({ error: 'Missing mandatory order parameters.' });
@@ -135,7 +135,7 @@ export const placeOrder = async (req, res) => {
         }
       } else {
         // Non-reduceOnly order: requires initial margin collateral lock
-        const leverage = activePosition ? activePosition.leverage : 20; // default 20x
+        const leverage = activePosition ? activePosition.leverage : (reqLeverage ? Math.min(Math.max(parseInt(reqLeverage), 1), 125) : 20);
         const currentPrice = matcher.latestPrices.futures[symbol] || numericPrice || 0;
         
         if (currentPrice <= 0) {
@@ -511,7 +511,7 @@ export const closePosition = async (req, res) => {
       return res.status(404).json({ error: 'Active position not found on this symbol.' });
     }
 
-    const currentPrice = matcher.latestPrices.futures[symbol.toLowerCase()] || matcher.latestPrices.spot[symbol.toLowerCase()];
+    const currentPrice = matcher.latestPrices.futures[symbol.toUpperCase()] || matcher.latestPrices.spot[symbol.toUpperCase()];
     if (!currentPrice) {
       await t.rollback();
       return res.status(400).json({ error: 'Current market price not loaded. Cannot close position.' });

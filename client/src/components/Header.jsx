@@ -12,16 +12,21 @@ export default function Header({
   onOpenHelp, 
   isWsConnected,
   lang = 'id',
-  setLang
+  setLang,
+  priceCache = {}
 }) {
   
+  // Helper to get live price for an asset from priceCache or sensible fallback
+  const getAssetPrice = (asset) => {
+    const sym = `${asset}USDT`;
+    if (priceCache[sym] && priceCache[sym].price) return priceCache[sym].price;
+    return 0; // If no cache yet, don't estimate
+  };
+
   const totalSpotValue = wallets.filter(w => w.walletType === 'spot').reduce((acc, curr) => {
     const balance = parseFloat(curr.balance || 0);
     if (curr.asset === 'USDT' || curr.asset === 'USDC') return acc + balance;
-    if (curr.asset === 'BTC') return acc + (balance * 74000);
-    if (curr.asset === 'ETH') return acc + (balance * 3800);
-    if (curr.asset === 'SOL') return acc + (balance * 180);
-    return acc + balance;
+    return acc + (balance * getAssetPrice(curr.asset));
   }, 0);
 
   const totalFuturesValue = wallets.filter(w => w.walletType === 'futures').reduce((acc, curr) => {
@@ -216,11 +221,11 @@ export default function Header({
             color: 'var(--text-muted)'
           }} title={t.nav}>
             <Wallet size={12} style={{ color: 'var(--primary-gold)' }} />
-            <span>NAV: <strong style={{ color: 'var(--primary-gold)', fontFamily: 'monospace' }}>{totalNAV.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</strong></span>
+            <span>NAV: <strong style={{ color: 'var(--primary-gold)', fontFamily: 'monospace' }}>{totalNAV.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</strong></span>
             <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
-            <span>Spot: <strong style={{ color: 'var(--text-active)', fontFamily: 'monospace' }}>{totalSpotValue.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</strong></span>
+            <span>Spot: <strong style={{ color: 'var(--text-active)', fontFamily: 'monospace' }}>{totalSpotValue.toLocaleString('en-US', { maximumFractionDigits: 2 })}</strong></span>
             <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
-            <span>Futures: <strong style={{ color: 'var(--text-active)', fontFamily: 'monospace' }}>{totalFuturesValue.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</strong></span>
+            <span>Futures: <strong style={{ color: 'var(--text-active)', fontFamily: 'monospace' }}>{totalFuturesValue.toLocaleString('en-US', { maximumFractionDigits: 2 })}</strong></span>
           </div>
         )}
 

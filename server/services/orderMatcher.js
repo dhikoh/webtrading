@@ -463,6 +463,40 @@ class OrderMatcher {
         description: `Spot Buy filled on ${order.symbol}. Received ${order.quantity} ${baseAsset}`
       }, { transaction: t });
 
+      // Refund escrow difference if fill price is lower than order price (favorable fill)
+      // Escrow was locked at: order.quantity * order.price
+      // Actual cost is:       order.quantity * fillPrice
+      // Refund = escrow - actual cost (positive when fillPrice < order.price)
+      if (order.price && price < order.price) {
+        const escrowedCost = order.quantity * order.price;
+        const actualCost = order.quantity * price;
+        const refundAmount = escrowedCost - actualCost;
+
+        if (refundAmount > 0) {
+          let quoteWallet = await Wallet.findOne({
+            where: { userId: order.userId, walletType: 'spot', asset: quoteAsset },
+            transaction: t
+          });
+
+          if (quoteWallet) {
+            const beforeQuote = quoteWallet.balance;
+            quoteWallet.balance = beforeQuote + refundAmount;
+            await quoteWallet.save({ transaction: t });
+
+            await TransactionLedger.create({
+              userId: order.userId,
+              walletId: quoteWallet.id,
+              transactionType: 'SPOT_TRADE',
+              asset: quoteAsset,
+              amount: refundAmount,
+              beforeBalance: beforeQuote,
+              afterBalance: quoteWallet.balance,
+              description: `Escrow refund on ${order.symbol} BUY. Fill price ${price} < Order price ${order.price}. Refunded ${refundAmount.toFixed(4)} ${quoteAsset}`
+            }, { transaction: t });
+          }
+        }
+      }
+
       // Log trade history
       await TradeHistory.create({
         userId: order.userId,
@@ -833,7 +867,7 @@ class OrderMatcher {
 
       for (const pos of activePositions) {
         const symbol = pos.symbol.toUpperCase();
-        const markPrice = this.latestPrices.futures[symbol.toLowerCase()] || this.latestPrices.spot[symbol.toLowerCase()];
+        const markPrice = this.latestPrices.futures[symbol] || this.latestPrices.spot[symbol];
 
         if (!markPrice) continue;
 

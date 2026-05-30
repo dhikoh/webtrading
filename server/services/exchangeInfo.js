@@ -1,12 +1,13 @@
 let cachedSpotInfo = null;
 let cachedFuturesInfo = null;
-let lastCacheTime = 0;
+let lastSpotCacheTime = 0;
+let lastFuturesCacheTime = 0;
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
 // Fetch Spot symbols info via Bybit V5
 export const fetchSpotExchangeInfo = async () => {
   const now = Date.now();
-  if (cachedSpotInfo && (now - lastCacheTime < CACHE_TTL)) {
+  if (cachedSpotInfo && (now - lastSpotCacheTime < CACHE_TTL)) {
     return cachedSpotInfo;
   }
 
@@ -39,7 +40,7 @@ export const fetchSpotExchangeInfo = async () => {
       });
 
     cachedSpotInfo = symbols;
-    lastCacheTime = now;
+    lastSpotCacheTime = now;
     return symbols;
   } catch (error) {
     console.error('Error fetching Spot ExchangeInfo via Bybit:', error.message);
@@ -50,7 +51,7 @@ export const fetchSpotExchangeInfo = async () => {
 // Fetch Futures symbols info via Bybit V5
 export const fetchFuturesExchangeInfo = async () => {
   const now = Date.now();
-  if (cachedFuturesInfo && (now - lastCacheTime < CACHE_TTL)) {
+  if (cachedFuturesInfo && (now - lastFuturesCacheTime < CACHE_TTL)) {
     return cachedFuturesInfo;
   }
 
@@ -83,7 +84,7 @@ export const fetchFuturesExchangeInfo = async () => {
       });
 
     cachedFuturesInfo = symbols;
-    lastCacheTime = now;
+    lastFuturesCacheTime = now;
     return symbols;
   } catch (error) {
     console.error('Error fetching Futures ExchangeInfo via Bybit:', error.message);

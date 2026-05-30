@@ -14,7 +14,7 @@ const COIN_NAMES = {
   AIGENSYN: 'AIGen Synthetic'
 };
 
-export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lang = 'id' }) {
+export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lang = 'id', socket, priceCache = {} }) {
   const [symbols, setSymbols] = useState([]);
   const [search, setSearch] = useState('');
   const [activeMarketTab, setActiveMarketTab] = useState(marketType); // 'spot' | 'futures'
@@ -46,41 +46,14 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lan
         const res = await fetch(`${API_URL}${endpoint}`);
         const data = await res.json();
         
-        // Enrich symbol data with mock/calculated metrics for full Bybit experience
+        // Enrich symbol data with exchange metadata
         const enriched = (Array.isArray(data) ? data : []).map(s => {
-          // Provide realistic price estimates based on historical assets
-          let lastPrice = 1.0;
-          let mockVol = '1.24M';
-          let mockChange = 0.12;
-
-          if (s.baseAsset === 'BTC') {
-            lastPrice = 74019.20;
-            mockVol = '316.15M';
-            mockChange = 0.13;
-          } else if (s.baseAsset === 'ETH') {
-            lastPrice = 3845.50;
-            mockVol = '145.80M';
-            mockChange = -1.25;
-          } else if (s.baseAsset === 'SOL') {
-            lastPrice = 182.10;
-            mockVol = '88.34M';
-            mockChange = 2.45;
-          } else if (s.baseAsset === 'MEME' || s.baseAsset === 'DOGE') {
-            lastPrice = 0.1425;
-            mockVol = '12.40M';
-            mockChange = -4.80;
-          } else if (s.baseAsset.includes('AIGEN')) {
-            lastPrice = 2.4850;
-            mockVol = '8.92M';
-            mockChange = 12.85;
-          }
-
           return {
             ...s,
             fullName: COIN_NAMES[s.baseAsset] || `${s.baseAsset} Token`,
-            lastPrice,
-            vol24h: mockVol,
-            change24h: mockChange,
+            lastPrice: 0,
+            vol24h: '---',
+            change24h: 0,
             isSeed: s.baseAsset.includes('AIGEN') || s.baseAsset === 'MEME'
           };
         });
@@ -95,6 +68,36 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lan
 
     loadSymbols();
   }, [activeMarketTab]);
+
+  // Update symbol prices from priceCache whenever it changes
+  useEffect(() => {
+    if (Object.keys(priceCache).length === 0) return;
+    setSymbols(prev => prev.map(s => {
+      const cached = priceCache[s.symbol];
+      if (cached) {
+        return {
+          ...s,
+          lastPrice: cached.price || s.lastPrice,
+          change24h: cached.changePct ? parseFloat(cached.changePct) : s.change24h
+        };
+      }
+      return s;
+    }));
+  }, [priceCache]);
+
+  // Subscribe to ticker for visible symbols via WS
+  useEffect(() => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    // Subscribe to a few important symbols so their prices populate
+    const importantSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'XRPUSDT'];
+    importantSymbols.forEach(sym => {
+      socket.send(JSON.stringify({
+        type: 'SUBSCRIBE',
+        symbol: sym,
+        marketType: activeMarketTab
+      }));
+    });
+  }, [socket, activeMarketTab]);
 
   // Synchronize dynamic updates from top-level state
   useEffect(() => {
@@ -454,10 +457,10 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lan
                       fontFamily: 'monospace',
                       color: isActive ? 'var(--primary-gold)' : 'var(--text-active)'
                     }}>
-                      {parseFloat(s.lastPrice).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                      {parseFloat(s.lastPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: s.pricePrecision || 4 })}
                     </span>
                     <span style={{ color: 'var(--text-muted)', fontSize: '9.5px', fontFamily: 'monospace' }}>
-                      ${parseFloat(s.lastPrice).toLocaleString('id-ID', { minimumFractionDigits: 2 })}
+                      ${parseFloat(s.lastPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
 
