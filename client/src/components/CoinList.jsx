@@ -14,7 +14,7 @@ const COIN_NAMES = {
   AIGENSYN: 'AIGen Synthetic'
 };
 
-export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
+export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lang = 'id' }) {
   const [symbols, setSymbols] = useState([]);
   const [search, setSearch] = useState('');
   const [activeMarketTab, setActiveMarketTab] = useState(marketType); // 'spot' | 'futures'
@@ -159,6 +159,44 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
     return 0;
   });
 
+  // Translations
+  const t = {
+    id: {
+      spot: 'Pasar Spot',
+      futures: 'Futures Perp',
+      favorites: 'Favorit',
+      all: 'Semua',
+      main: 'Utama',
+      seed: 'Tag Seed',
+      search: 'Cari koin atau alamat kontrak...',
+      pairVol: 'Pasangan / Vol',
+      priceUsd: 'Harga / USD',
+      change: 'Perubahan %',
+      loading: 'Memuat daftar pasar...',
+      empty: 'Pasangan tidak ditemukan.',
+      activeLabel: 'Registri Aktif',
+      pairsLabel: 'pasang',
+      favsLabel: 'Favorit'
+    },
+    en: {
+      spot: 'Spot Market',
+      futures: 'Futures Perp',
+      favorites: 'Favorites',
+      all: 'All',
+      main: 'Main',
+      seed: 'Seed Tag',
+      search: 'Enter token or contract address...',
+      pairVol: 'Pair / Vol',
+      priceUsd: 'Price / USD',
+      change: 'Change %',
+      loading: 'Loading market registry...',
+      empty: 'No pairs found.',
+      activeLabel: 'Active Registry',
+      pairsLabel: 'pairs',
+      favsLabel: 'Favs'
+    }
+  }[lang];
+
   return (
     <aside className="trading-panel" style={{ 
       gridColumn: '1', 
@@ -181,7 +219,7 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
           style={{ fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
         >
           <Flame size={12} />
-          Spot Market
+          {t.spot}
         </button>
         <button 
           className={`tab-btn ${activeMarketTab === 'futures' ? 'active' : ''}`}
@@ -192,7 +230,7 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
           style={{ fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
         >
           <Award size={12} />
-          Futures Perp
+          {t.futures}
         </button>
       </div>
 
@@ -233,6 +271,8 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
               }}
             >
               {isFav ? <Star size={11} fill={isSelected ? 'var(--primary-gold)' : 'transparent'} /> : q}
+              {!isFav && q}
+              {isFav && <span style={{ fontSize: '10px' }}>{t.favorites}</span>}
             </button>
           );
         })}
@@ -245,12 +285,16 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
         padding: '8px 12px 4px 12px',
         backgroundColor: '#161a1e'
       }}>
-        {['All', 'Main', 'Seed Tag'].map(filter => {
-          const isSelected = subFilter === filter;
+        {[
+          { key: 'All', label: t.all },
+          { key: 'Main', label: t.main },
+          { key: 'Seed Tag', label: t.seed }
+        ].map(filter => {
+          const isSelected = subFilter === filter.key;
           return (
             <button
-              key={filter}
-              onClick={() => setSubFilter(filter)}
+              key={filter.key}
+              onClick={() => setSubFilter(filter.key)}
               style={{
                 fontSize: '10px',
                 padding: '3px 8px',
@@ -263,7 +307,7 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
                 transition: 'all 0.15s'
               }}
             >
-              {filter}
+              {filter.label}
             </button>
           );
         })}
@@ -273,7 +317,7 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
       <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', position: 'relative' }}>
         <input
           type="text"
-          placeholder="Enter token or contract address..."
+          placeholder={t.search}
           className="form-input"
           style={{ 
             width: '100%', 
@@ -300,15 +344,15 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
         fontWeight: '600'
       }}>
         <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }} onClick={() => handleSort('symbol')}>
-          <span>Pair / Vol</span>
+          <span>{t.pairVol}</span>
           <ArrowUpDown size={8} />
         </div>
         <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }} onClick={() => handleSort('price')}>
-          <span>Price / USD</span>
+          <span>{t.priceUsd}</span>
           <ArrowUpDown size={8} />
         </div>
         <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }} onClick={() => handleSort('change')}>
-          <span>Change %</span>
+          <span>{t.change}</span>
           <ArrowUpDown size={8} />
         </div>
       </div>
@@ -317,11 +361,11 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
       <div style={{ flex: '1', overflowY: 'auto' }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '11px' }}>
-            Loading market registry...
+            {t.loading}
           </div>
         ) : sortedSymbols.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '11px' }}>
-            No pairs found.
+            {t.empty}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -457,12 +501,12 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <Flame size={11} style={{ color: 'var(--primary-gold)' }} />
-          <span>Active Registry: {symbols.length} pairs</span>
+          <span>{t.activeLabel}: {symbols.length} {t.pairsLabel}</span>
         </div>
         {favorites.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Star size={10} fill="var(--primary-gold)" style={{ color: 'var(--primary-gold)' }} />
-            <span>{favorites.length} Favs</span>
+            <span>{favorites.length} {t.favsLabel}</span>
           </div>
         )}
       </div>

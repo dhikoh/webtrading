@@ -3,7 +3,56 @@ import { createChart } from 'lightweight-charts';
 import { Activity, Info, BarChart2, Eye, EyeOff } from 'lucide-react';
 import { API_URL } from '../config.js';
 
-export default function TradingChart({ activeSymbol, marketType, socket, onPriceTick }) {
+export default function TradingChart({ activeSymbol, marketType, socket, onPriceTick, lang = 'id' }) {
+  const t = {
+    id: {
+      chartTab: 'Grafik',
+      infoTab: 'Info',
+      dataTab: 'Data Perdagangan',
+      timeLabel: 'Waktu:',
+      nowLabel: 'Sekarang',
+      changeLabel: 'Ubah:',
+      rangeLabel: 'Rentang:',
+      assetInfoTitle: 'Info Aset:',
+      assetDesc: `${activeSymbol.toUpperCase()} adalah aset kripto global terkemuka yang diperdagangkan secara real-time pada bursa utama dunia. Simulator Trading Machine mengambil feed pasar terenkripsi secara instan untuk memberikan pengalaman simulasi pesanan limit, stop, dan leverage berskala institusional.`,
+      mechanismLabel: 'Mekanisme',
+      feesLabel: 'Biaya Transaksi',
+      liquidityLabel: 'Likuiditas Eksternal',
+      statusLabel: 'Status Portal',
+      statusValue: 'Aktif & Stabil',
+      fundFlowTitle: 'Analisis Aliran Dana',
+      netBuy: 'Beli Net',
+      netInflow24h: 'Inflow Net 24J:',
+      trendTitle: 'Tren Aliran Net Besar 5-Hari',
+      dayPrefix: 'Hari ',
+      liveStreamLabel: 'Aliran Langsung Terrelai',
+      dataEngineLabel: 'Mesin Data Bybit V5'
+    },
+    en: {
+      chartTab: 'Chart',
+      infoTab: 'Info',
+      dataTab: 'Trading Data',
+      timeLabel: 'Time:',
+      nowLabel: 'Now',
+      changeLabel: 'Change:',
+      rangeLabel: 'Range:',
+      assetInfoTitle: 'Asset Info:',
+      assetDesc: `${activeSymbol.toUpperCase()} is a leading global crypto asset traded real-time on major world exchanges. The Trading Machine Simulator retrieves instant encrypted market feeds to provide an institutional-grade simulation experience for limit, stop, and leverage orders.`,
+      mechanismLabel: 'Mechanism',
+      feesLabel: 'Transaction Fees',
+      liquidityLabel: 'External Liquidity',
+      statusLabel: 'Portal Status',
+      statusValue: 'Active & Stable',
+      fundFlowTitle: 'Fund Flow Analysis',
+      netBuy: 'Net Buy',
+      netInflow24h: '24H Net Inflow:',
+      trendTitle: '5-Day Large Net Inflow Trend',
+      dayPrefix: 'Day ',
+      liveStreamLabel: 'Relayed Live Stream',
+      dataEngineLabel: 'Bybit V5 Data Engine'
+    }
+  }[lang];
+
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -155,13 +204,13 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
       
       let timeStr = '-';
       try {
-        timeStr = new Date(candle.time * 1000).toLocaleString('id-ID', {
+        timeStr = new Date(candle.time * 1000).toLocaleString(lang === 'id' ? 'id-ID' : 'en-US', {
           month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit'
         });
       } catch (e) {}
 
       setLegend({
-        time: isLatest ? 'Sekarang' : timeStr,
+        time: isLatest ? t.nowLabel : timeStr,
         open: candle.open.toFixed(2),
         high: candle.high.toFixed(2),
         low: candle.low.toFixed(2),
@@ -323,7 +372,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
       }
       chart.remove();
     };
-  }, [activeSymbol, marketType, activeInterval, socket, activeTab]);
+  }, [activeSymbol, marketType, activeInterval, socket, activeTab, lang]);
 
   return (
     <section className="trading-panel" style={{ gridColumn: '2', gridRow: '1', display: 'flex', flexDirection: 'column' }}>
@@ -358,7 +407,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
             }}
           >
             <Activity size={14} style={{ color: activeTab === 'chart' ? 'var(--primary-gold)' : 'inherit' }} />
-            Chart
+            {t.chartTab}
           </button>
 
           <button 
@@ -379,7 +428,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
             }}
           >
             <Info size={14} style={{ color: activeTab === 'info' ? 'var(--primary-gold)' : 'inherit' }} />
-            Info
+            {t.infoTab}
           </button>
 
           <button 
@@ -400,13 +449,13 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
             }}
           >
             <BarChart2 size={14} style={{ color: activeTab === 'data' ? 'var(--primary-gold)' : 'inherit' }} />
-            Trading Data
+            {t.dataTab}
           </button>
         </div>
 
         {/* Action tags */}
         <div style={{ color: 'var(--text-muted)', fontSize: '10.5px', paddingRight: '8px' }}>
-          Bybit V5 Data Engine
+          {t.dataEngineLabel}
         </div>
       </div>
 
@@ -485,7 +534,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
             </div>
             
             <div style={{ color: 'var(--text-muted)', fontSize: '9.5px' }}>
-              Relayed Live Stream
+              {t.liveStreamLabel}
             </div>
           </div>
 
@@ -500,13 +549,13 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
             fontSize: '10.5px',
             color: 'var(--text-muted)'
           }}>
-            <span>Waktu: <b style={{ color: '#fff' }}>{legend.time}</b></span>
+            <span>{t.timeLabel} <b style={{ color: '#fff' }}>{legend.time}</b></span>
             <span>O: <b style={{ color: legend.isUp ? 'var(--green-bybit)' : 'var(--red-bybit)' }}>{legend.open}</b></span>
             <span>H: <b style={{ color: 'var(--green-bybit)' }}>{legend.high}</b></span>
             <span>L: <b style={{ color: 'var(--red-bybit)' }}>{legend.low}</b></span>
             <span>C: <b style={{ color: legend.isUp ? 'var(--green-bybit)' : 'var(--red-bybit)' }}>{legend.close}</b></span>
-            <span>Change: <b style={{ color: legend.isUp ? 'var(--green-bybit)' : 'var(--red-bybit)' }}>{legend.change}</b></span>
-            <span>Range: <b style={{ color: '#fff' }}>{legend.range}</b></span>
+            <span>{t.changeLabel} <b style={{ color: legend.isUp ? 'var(--green-bybit)' : 'var(--red-bybit)' }}>{legend.change}</b></span>
+            <span>{t.rangeLabel} <b style={{ color: '#fff' }}>{legend.range}</b></span>
           </div>
 
           {/* Canvas container */}
@@ -526,32 +575,32 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
       {/* VIEWPORT B: TOKEN INFO */}
       {activeTab === 'info' && (
         <div style={{ padding: '20px', overflowY: 'auto', flex: 1, backgroundColor: '#161a1e', color: 'var(--text-active)' }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--primary-gold)' }}>Info Aset: {activeSymbol.toUpperCase()}</h3>
+          <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--primary-gold)' }}>{t.assetInfoTitle} {activeSymbol.toUpperCase()}</h3>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6', margin: '0 0 20px 0' }}>
-            {activeSymbol.toUpperCase()} adalah aset kripto global terkemuka yang diperdagangkan secara real-time pada bursa utama dunia. Simulator Trading Machine mengambil feed pasar terenkripsi secara instan untuk memberikan pengalaman simulasi pesanan limit, stop, dan leverage berskala institusional.
+            {t.assetDesc}
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Mekanisme</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.mechanismLabel}</div>
               <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: 'var(--primary-gold)' }}>
                 {marketType === 'futures' ? 'USDT-M Perpetual Futures' : 'Spot Market Trading'}
               </div>
             </div>
 
             <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Biaya Transaksi</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.feesLabel}</div>
               <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px' }}>Maker: 0.02% | Taker: 0.04%</div>
             </div>
 
             <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Likuiditas Eksternal</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.liquidityLabel}</div>
               <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: 'var(--green-bybit)' }}>Bybit Order Book Tier-1</div>
             </div>
 
             <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Status Portal</div>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: 'var(--green-bybit)' }}>Aktif & Stabil</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.statusLabel}</div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '4px', color: 'var(--green-bybit)' }}>{t.statusValue}</div>
             </div>
           </div>
         </div>
@@ -560,7 +609,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
       {/* VIEWPORT C: TRADING DATA (Fund Flow Analysis Dashboard) */}
       {activeTab === 'data' && (
         <div style={{ padding: '20px', overflowY: 'auto', flex: 1, backgroundColor: '#161a1e', color: 'var(--text-active)' }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--primary-gold)' }}>Fund Flow Analysis ({activeSymbol.toUpperCase()})</h3>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--primary-gold)' }}>{t.fundFlowTitle} ({activeSymbol.toUpperCase()})</h3>
           
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '32px', alignItems: 'center' }}>
             {/* Pie donut chart */}
@@ -587,7 +636,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
                   fontSize: '10px',
                   color: 'var(--text-muted)'
                 }}>
-                  <span>Beli Net</span>
+                  <span>{t.netBuy}</span>
                   <span style={{ fontWeight: 'bold', color: 'var(--green-bybit)', fontSize: '13px' }}>51.38%</span>
                 </div>
               </div>
@@ -630,7 +679,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
             {/* Inflow flow bar display */}
             <div style={{ flex: 1, minWidth: '220px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                <span>24H Net Inflow:</span>
+                <span>{t.netInflow24h}</span>
                 <span style={{ color: 'var(--green-bybit)', fontWeight: 'bold' }}>+64.43K USDT</span>
               </div>
               
@@ -639,14 +688,14 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
               </div>
 
               {/* Multi day metrics */}
-              <h4 style={{ margin: '16px 0 8px 0', fontSize: '12px', color: 'var(--primary-gold)' }}>5-Day Large Net Inflow Trend</h4>
+              <h4 style={{ margin: '16px 0 8px 0', fontSize: '12px', color: 'var(--primary-gold)' }}>{t.trendTitle}</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px' }}>
                 {[
-                  { day: 'Hari 1', flow: '-413.73K', isPos: false },
-                  { day: 'Hari 2', flow: '-225.29K', isPos: false },
-                  { day: 'Hari 3', flow: '-1.33M', isPos: false },
-                  { day: 'Hari 4', flow: '+125.40K', isPos: true },
-                  { day: 'Hari 5', flow: '+64.43K', isPos: true },
+                  { day: `${t.dayPrefix}1`, flow: '-413.73K', isPos: false },
+                  { day: `${t.dayPrefix}2`, flow: '-225.29K', isPos: false },
+                  { day: `${t.dayPrefix}3`, flow: '-1.33M', isPos: false },
+                  { day: `${t.dayPrefix}4`, flow: '+125.40K', isPos: true },
+                  { day: `${t.dayPrefix}5`, flow: '+64.43K', isPos: true },
                 ].map((d, idx) => (
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ width: '40px', color: 'var(--text-muted)' }}>{d.day}</span>

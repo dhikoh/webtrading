@@ -8,7 +8,8 @@ export default function BottomTabs({
   positions, 
   openOrders, 
   onRefresh, 
-  floatingPnLs 
+  floatingPnLs,
+  lang = 'id'
 }) {
   const [activeTab, setActiveTab] = useState('positions'); // 'positions' | 'orders' | 'balances' | 'admin'
   const [transferDir, setTransferDir] = useState('SPOT_TO_FUTURES');
@@ -27,6 +28,148 @@ export default function BottomTabs({
   const [adminErr, setAdminErr] = useState('');
   const [adminOk, setAdminOk] = useState('');
   const [adminLoading, setAdminLoading] = useState(false);
+
+  // Translations
+  const t = {
+    id: {
+      positions: 'Posisi',
+      openOrders: 'Order Terbuka',
+      walletsTab: 'Dompet & Transfer',
+      pnlTab: 'Laporan PnL & Aset',
+      adminTab: 'Panel Super Admin',
+      noPositions: 'Tidak ada posisi leverage aktif. Buat order Futures untuk membuka posisi.',
+      noOrders: 'Tidak ada order tertunda aktif di buku order.',
+      marketClose: 'Tutup Pasar',
+      spotBalance: 'Saldo Dompet Spot',
+      futuresBalance: 'Dompet Futures Perpetual USDT',
+      assetHeader: 'Aset',
+      availableHeader: 'Saldo Tersedia',
+      collateralHeader: 'Saldo Kolateral',
+      transferHeader: 'Transfer Internal USDT',
+      directionLabel: 'Arah',
+      amountLabel: 'Jumlah (USDT)',
+      spotToFutures: 'Akun Spot ➔ Akun Futures',
+      futuresToSpot: 'Akun Futures ➔ Akun Spot',
+      confirmTransfer: 'Konfirmasi Transfer',
+      processing: 'Memproses...',
+      transferError: 'Transfer gagal.',
+      adminTitle: 'Database Pengguna & Saldo',
+      adminLogsTitle: 'Log Audit Keamanan Administratif',
+      noAdminLogs: 'Belum ada log audit keamanan.',
+      beforeLabel: 'Sebelum',
+      afterLabel: 'Sesudah',
+      adjustTitle: 'Sesuaikan / Suntik Saldo',
+      targetUser: 'Pengguna Target',
+      selectAccount: 'Pilih akun...',
+      walletDivision: 'Divisi Dompet',
+      spotAccount: 'Akun Spot',
+      futuresAccount: 'Akun Futures',
+      assetSymbol: 'Simbol Aset',
+      setBalance: 'Set Nilai Mutlak Saldo',
+      adjustmentError: 'Penyesuaian gagal.',
+      injecting: 'Menyuntikkan...',
+      overrideBtn: 'Tulis Ulang Saldo Pengguna',
+      allocationReport: 'Laporan Alokasi Aset',
+      pnlSummary: 'Ringkasan PnL Kumulatif',
+      returnRate: 'Tingkat Pengembalian Akumulatif:',
+      pnlHelp: '* Perhitungan PnL diperbarui setiap 24 jam dengan menggunakan penutupan harga harian Mark Price Bybit.',
+      performanceAnalysis: 'Analisis Kinerja Berkala (Spot & Futures)',
+      totalCumulative: 'Kumulatif Keseluruhan',
+      pnl7dLabel: 'PnL 7-Hari',
+      pnl30dLabel: 'PnL 30-Hari',
+      pnl90dLabel: 'PnL 90-Hari',
+      marketPrice: 'Harga Pasar',
+      cancelOrder: 'Batalkan Order',
+      thSymbol: 'Simbol',
+      thPosition: 'Posisi',
+      thSize: 'Ukuran',
+      thEntryPrice: 'Harga Masuk',
+      thMarkPrice: 'Harga Mark',
+      thLiqPrice: 'Harga Likuidasi',
+      thMargin: 'Margin (Terisolasi)',
+      thUnrealized: 'PnL Belum Direalisasi (USDT)',
+      thActions: 'Aksi',
+      thMarket: 'Pasar',
+      thSide: 'Arah',
+      thType: 'Tipe',
+      thPrice: 'Harga',
+      thQty: 'Kuantitas',
+      thTriggers: 'Pemicu',
+      thUserId: 'ID Pengguna',
+      thUsername: 'Username',
+      thRole: 'Peran',
+      thBalancesDetails: 'Detail Saldo'
+    },
+    en: {
+      positions: 'Positions',
+      openOrders: 'Open Orders',
+      walletsTab: 'Wallets & Inner Transfer',
+      pnlTab: 'PnL & Asset Reports',
+      adminTab: 'Super Admin Panel',
+      noPositions: 'No active leveraged positions. Place a Futures order to open position.',
+      noOrders: 'No pending active orders on books.',
+      marketClose: 'Market Close',
+      spotBalance: 'Spot Wallets Balance',
+      futuresBalance: 'USDT perpetual Futures Wallet',
+      assetHeader: 'Asset',
+      availableHeader: 'Available balance',
+      collateralHeader: 'Collateral Balance',
+      transferHeader: 'Internal USDT Transfer',
+      directionLabel: 'Direction',
+      amountLabel: 'Amount (USDT)',
+      spotToFutures: 'Spot Account ➔ Futures Account',
+      futuresToSpot: 'Futures Account ➔ Spot Account',
+      confirmTransfer: 'Confirm Transfer',
+      processing: 'Processing...',
+      transferError: 'Transfer failed.',
+      adminTitle: 'Database Users & Balance Vaults',
+      adminLogsTitle: 'Administrative Security Audit Trails',
+      noAdminLogs: 'No audit events logged yet.',
+      beforeLabel: 'Before',
+      afterLabel: 'After',
+      adjustTitle: 'Adjust / Inject Balances',
+      targetUser: 'Target User',
+      selectAccount: 'Select account...',
+      walletDivision: 'Wallet Division',
+      spotAccount: 'Spot Account',
+      futuresAccount: 'Futures Account',
+      assetSymbol: 'Asset Symbol',
+      setBalance: 'Set Balance Absolute Value',
+      adjustmentError: 'Adjustment failed.',
+      injecting: 'Injecting...',
+      overrideBtn: 'Override User Balance',
+      allocationReport: 'Asset Allocation Report',
+      pnlSummary: 'Cumulative PnL Summary',
+      returnRate: 'Cumulative Return Rate:',
+      pnlHelp: '* PnL calculations are updated every 24 hours using the daily closing Mark Price of Bybit.',
+      performanceAnalysis: 'Periodic Performance Analysis (Spot & Futures)',
+      totalCumulative: 'Total Cumulative',
+      pnl7dLabel: '7-Day PnL',
+      pnl30dLabel: '30-Day PnL',
+      pnl90dLabel: '90-Day PnL',
+      marketPrice: 'Market price',
+      cancelOrder: 'Cancel Order',
+      thSymbol: 'Symbol',
+      thPosition: 'Position',
+      thSize: 'Size',
+      thEntryPrice: 'Entry Price',
+      thMarkPrice: 'Mark Price',
+      thLiqPrice: 'Liq Price',
+      thMargin: 'Margin (Isolated)',
+      thUnrealized: 'Unrealized PnL (USDT)',
+      thActions: 'Actions',
+      thMarket: 'Market',
+      thSide: 'Side',
+      thType: 'Type',
+      thPrice: 'Price',
+      thQty: 'Quantity',
+      thTriggers: 'Triggers',
+      thUserId: 'User ID',
+      thUsername: 'Username',
+      thRole: 'Role',
+      thBalancesDetails: 'Balances Details'
+    }
+  }[lang];
 
   useEffect(() => {
     if (activeTab === 'admin' && user?.role === 'admin') {
@@ -105,7 +248,7 @@ export default function BottomTabs({
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Transfer failed.');
+      if (!res.ok) throw new Error(data.error || t.transferError);
 
       setTransferOk(data.message);
       setTransferAmt('');
@@ -140,7 +283,7 @@ export default function BottomTabs({
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Adjustment failed.');
+      if (!res.ok) throw new Error(data.error || t.adjustmentError);
 
       setAdminOk(data.message);
       setAdminAmt('');
@@ -159,20 +302,20 @@ export default function BottomTabs({
       {/* Workspace Tabs Headers Selection */}
       <div className="tab-header" style={{ height: '35px' }}>
         <button className={`tab-btn ${activeTab === 'positions' ? 'active' : ''}`} onClick={() => setActiveTab('positions')}>
-          Positions ({positions.length})
+          {t.positions} ({positions.length})
         </button>
         <button className={`tab-btn ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => setActiveTab('orders')}>
-          Open Orders ({openOrders.length})
+          {t.openOrders} ({openOrders.length})
         </button>
         <button className={`tab-btn ${activeTab === 'balances' ? 'active' : ''}`} onClick={() => setActiveTab('balances')}>
-          Wallets & Inner Transfer
+          {t.walletsTab}
         </button>
         <button 
           className={`tab-btn ${activeTab === 'pnl' ? 'active' : ''}`} 
           onClick={() => setActiveTab('pnl')}
           style={{ color: 'var(--green-bybit)', borderBottomColor: activeTab === 'pnl' ? 'var(--green-bybit)' : 'transparent' }}
         >
-          PnL & Asset Reports
+          {t.pnlTab}
         </button>
         
         {user?.role === 'admin' && (
@@ -182,7 +325,7 @@ export default function BottomTabs({
             style={{ color: 'var(--red-bybit)', borderBottomColor: activeTab === 'admin' ? 'var(--red-bybit)' : 'transparent' }}
           >
             <ShieldCheck size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'text-bottom' }} />
-            Super Admin Panel
+            {t.adminTab}
           </button>
         )}
       </div>
@@ -194,21 +337,21 @@ export default function BottomTabs({
         {activeTab === 'positions' && (
           positions.length === 0 ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-              No active leveraged positions. Place a Futures order to open position.
+              {t.noPositions}
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '11.5px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: '6px' }}>Symbol</th>
-                  <th style={{ padding: '6px' }}>Position</th>
-                  <th style={{ padding: '6px' }}>Size</th>
-                  <th style={{ padding: '6px' }}>Entry Price</th>
-                  <th style={{ padding: '6px' }}>Mark Price</th>
-                  <th style={{ padding: '6px' }}>Liq Price</th>
-                  <th style={{ padding: '6px' }}>Margin (Isolated)</th>
-                  <th style={{ padding: '6px' }}>Unrealized PnL (USDT)</th>
-                  <th style={{ padding: '6px', textAlign: 'right' }}>Actions</th>
+                  <th style={{ padding: '6px' }}>{t.thSymbol}</th>
+                  <th style={{ padding: '6px' }}>{t.thPosition}</th>
+                  <th style={{ padding: '6px' }}>{t.thSize}</th>
+                  <th style={{ padding: '6px' }}>{t.thEntryPrice}</th>
+                  <th style={{ padding: '6px' }}>{t.thMarkPrice}</th>
+                  <th style={{ padding: '6px' }}>{t.thLiqPrice}</th>
+                  <th style={{ padding: '6px' }}>{t.thMargin}</th>
+                  <th style={{ padding: '6px' }}>{t.thUnrealized}</th>
+                  <th style={{ padding: '6px', textAlign: 'right' }}>{t.thActions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -249,7 +392,7 @@ export default function BottomTabs({
                             borderRadius: '3px', padding: '2px 6px', fontSize: '10px', fontWeight: 600, cursor: 'pointer'
                           }}
                         >
-                          Market Close
+                          {t.marketClose}
                         </button>
                       </td>
                     </tr>
@@ -264,20 +407,20 @@ export default function BottomTabs({
         {activeTab === 'orders' && (
           openOrders.length === 0 ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-              No pending active orders on books.
+              {t.noOrders}
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '11.5px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: '6px' }}>Symbol</th>
-                  <th style={{ padding: '6px' }}>Market</th>
-                  <th style={{ padding: '6px' }}>Side</th>
-                  <th style={{ padding: '6px' }}>Type</th>
-                  <th style={{ padding: '6px' }}>Price</th>
-                  <th style={{ padding: '6px' }}>Quantity</th>
-                  <th style={{ padding: '6px' }}>Triggers</th>
-                  <th style={{ padding: '6px', textAlign: 'right' }}>Actions</th>
+                  <th style={{ padding: '6px' }}>{t.thSymbol}</th>
+                  <th style={{ padding: '6px' }}>{t.thMarket}</th>
+                  <th style={{ padding: '6px' }}>{t.thSide}</th>
+                  <th style={{ padding: '6px' }}>{t.thType}</th>
+                  <th style={{ padding: '6px' }}>{t.thPrice}</th>
+                  <th style={{ padding: '6px' }}>{t.thQty}</th>
+                  <th style={{ padding: '6px' }}>{t.thTriggers}</th>
+                  <th style={{ padding: '6px', textAlign: 'right' }}>{t.thActions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -292,7 +435,7 @@ export default function BottomTabs({
                     </td>
                     <td style={{ padding: '6px', fontSize: '10.5px' }}>{order.type.replace('_', ' ')}</td>
                     <td style={{ padding: '6px', fontFamily: 'monospace' }}>
-                      {order.price ? parseFloat(order.price).toFixed(2) : 'Market price'}
+                      {order.price ? parseFloat(order.price).toFixed(2) : t.marketPrice}
                     </td>
                     <td style={{ padding: '6px', fontFamily: 'monospace' }}>{parseFloat(order.quantity).toFixed(4)}</td>
                     <td style={{ padding: '6px', fontFamily: 'monospace', color: 'var(--primary-gold)' }}>
@@ -302,7 +445,7 @@ export default function BottomTabs({
                       <button 
                         onClick={() => handleCancelOrder(order.id)}
                         style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                        title="Cancel Order"
+                        title={t.cancelOrder}
                       >
                         <Trash2 size={14} style={{ verticalAlign: 'middle' }} />
                       </button>
@@ -321,12 +464,12 @@ export default function BottomTabs({
             {/* Wallets Tables */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px' }}>
-                <span style={{ fontWeight: 600, color: 'var(--primary-gold)', display: 'block', marginBottom: '8px' }}>Spot Wallets Balance</span>
+                <span style={{ fontWeight: 600, color: 'var(--primary-gold)', display: 'block', marginBottom: '8px' }}>{t.spotBalance}</span>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '11px' }}>
                   <thead>
                     <tr style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '4px' }}>Asset</th>
-                      <th style={{ padding: '4px', textAlign: 'right' }}>Available balance</th>
+                      <th style={{ padding: '4px' }}>{t.assetHeader}</th>
+                      <th style={{ padding: '4px', textAlign: 'right' }}>{t.availableHeader}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -341,12 +484,12 @@ export default function BottomTabs({
               </div>
 
               <div style={{ backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px' }}>
-                <span style={{ fontWeight: 600, color: 'var(--primary-gold)', display: 'block', marginBottom: '8px' }}>USDT perpetual Futures Wallet</span>
+                <span style={{ fontWeight: 600, color: 'var(--primary-gold)', display: 'block', marginBottom: '8px' }}>{t.futuresBalance}</span>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '11px' }}>
                   <thead>
                     <tr style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '4px' }}>Asset</th>
-                      <th style={{ padding: '4px', textAlign: 'right' }}>Collateral Balance</th>
+                      <th style={{ padding: '4px' }}>{t.assetHeader}</th>
+                      <th style={{ padding: '4px', textAlign: 'right' }}>{t.collateralHeader}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -365,25 +508,25 @@ export default function BottomTabs({
             <div style={{ backgroundColor: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <span style={{ fontWeight: 600, fontSize: '12.5px', color: 'var(--text-active)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <ArrowLeftRight size={14} style={{ color: 'var(--primary-gold)' }} />
-                <span>Internal USDT Transfer</span>
+                <span>{t.transferHeader}</span>
               </span>
 
               <form onSubmit={handleTransfer} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div className="form-group">
-                  <label>Direction</label>
+                  <label>{t.directionLabel}</label>
                   <select 
                     className="form-input"
                     value={transferDir}
                     onChange={(e) => setTransferDir(e.target.value)}
                     style={{ cursor: 'pointer' }}
                   >
-                    <option value="SPOT_TO_FUTURES">Spot Account ➔ Futures Account</option>
-                    <option value="FUTURES_TO_SPOT">Futures Account ➔ Spot Account</option>
+                    <option value="SPOT_TO_FUTURES">{t.spotToFutures}</option>
+                    <option value="FUTURES_TO_SPOT">{t.futuresToSpot}</option>
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label>Amount (USDT)</label>
+                  <label>{t.amountLabel}</label>
                   <input
                     type="number"
                     step="0.0001"
@@ -399,7 +542,7 @@ export default function BottomTabs({
                 {transferOk && <div style={{ color: 'var(--green-bybit)', fontSize: '10.5px', backgroundColor: 'var(--green-bybit-light)', padding: '6px', borderRadius: '3px' }}>{transferOk}</div>}
 
                 <button type="submit" disabled={transferLoading} className="btn-primary" style={{ padding: '8px', fontSize: '12px' }}>
-                  {transferLoading ? 'Processing...' : 'Confirm Transfer'}
+                  {transferLoading ? t.processing : t.confirmTransfer}
                 </button>
               </form>
             </div>
@@ -417,16 +560,16 @@ export default function BottomTabs({
               <div style={{ backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px' }}>
                 <span style={{ fontWeight: 600, color: 'var(--red-bybit)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                   <Database size={13} />
-                  <span>Database Users & Balance Vaults</span>
+                  <span>{t.adminTitle}</span>
                 </span>
                 
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '11px' }}>
                   <thead>
                     <tr style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '4px' }}>User ID</th>
-                      <th style={{ padding: '4px' }}>Username</th>
-                      <th style={{ padding: '4px' }}>Role</th>
-                      <th style={{ padding: '4px' }}>Balances Details</th>
+                      <th style={{ padding: '4px' }}>{t.thUserId}</th>
+                      <th style={{ padding: '4px' }}>{t.thUsername}</th>
+                      <th style={{ padding: '4px' }}>{t.thRole}</th>
+                      <th style={{ padding: '4px' }}>{t.thBalancesDetails}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -455,12 +598,12 @@ export default function BottomTabs({
               <div style={{ backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px' }}>
                 <span style={{ fontWeight: 600, color: 'var(--text-active)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                   <FileText size={13} />
-                  <span>Administrative Security Audit Trails</span>
+                  <span>{t.adminLogsTitle}</span>
                 </span>
                 
                 <div style={{ maxHeight: '180px', overflowY: 'auto', fontSize: '10.5px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {adminLogs.length === 0 ? (
-                    <span style={{ color: 'var(--text-muted)' }}>No audit events logged yet.</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{t.noAdminLogs}</span>
                   ) : (
                     adminLogs.map(log => (
                       <div key={log.id} style={{ backgroundColor: 'var(--bg-main)', border: '1px solid var(--border-color)', padding: '6px', borderRadius: '4px' }}>
@@ -470,7 +613,7 @@ export default function BottomTabs({
                         </div>
                         <p style={{ color: 'var(--text-active)' }}>{log.description}</p>
                         <div style={{ fontSize: '9.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                          Before: <code style={{ color: 'var(--red-bybit)' }}>{log.beforeValue}</code> | After: <code style={{ color: 'var(--green-bybit)' }}>{log.afterValue}</code>
+                          {t.beforeLabel}: <code style={{ color: 'var(--red-bybit)' }}>{log.beforeValue}</code> | {t.afterLabel}: <code style={{ color: 'var(--green-bybit)' }}>{log.afterValue}</code>
                         </div>
                       </div>
                     ))
@@ -484,20 +627,20 @@ export default function BottomTabs({
             <div style={{ backgroundColor: 'var(--bg-main)', border: '1px solid var(--red-bybit)', borderRadius: '6px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', alignSelf: 'start' }}>
               <span style={{ fontWeight: 600, fontSize: '12.5px', color: 'var(--red-bybit)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <PlusCircle size={14} />
-                <span>Adjust / Inject Balances</span>
+                <span>{t.adjustTitle}</span>
               </span>
 
               <form onSubmit={handleAdminAdjust} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 
                 <div className="form-group">
-                  <label>Target User</label>
+                  <label>{t.targetUser}</label>
                   <select 
                     className="form-input"
                     value={selectedUserId}
                     onChange={(e) => setSelectedUserId(e.target.value)}
                     required
                   >
-                    <option value="">Select account...</option>
+                    <option value="">{t.selectAccount}</option>
                     {adminUsers.map(u => (
                       <option key={u.id} value={u.id}>{u.username} (ID: {u.id})</option>
                     ))}
@@ -505,19 +648,19 @@ export default function BottomTabs({
                 </div>
 
                 <div className="form-group">
-                  <label>Wallet Division</label>
+                  <label>{t.walletDivision}</label>
                   <select 
                     className="form-input"
                     value={adminWalletType}
                     onChange={(e) => setAdminWalletType(e.target.value)}
                   >
-                    <option value="spot">Spot Account</option>
-                    <option value="futures">Futures Account</option>
+                    <option value="spot">{t.spotAccount}</option>
+                    <option value="futures">{t.futuresAccount}</option>
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label>Asset Symbol</label>
+                  <label>{t.assetSymbol}</label>
                   <select 
                     className="form-input"
                     value={adminAsset}
@@ -532,7 +675,7 @@ export default function BottomTabs({
                 </div>
 
                 <div className="form-group">
-                  <label>Set Balance Absolute Value</label>
+                  <label>{t.setBalance}</label>
                   <input
                     type="number"
                     step="any"
@@ -555,7 +698,7 @@ export default function BottomTabs({
                     padding: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer'
                   }}
                 >
-                  {adminLoading ? 'Injecting...' : 'Override User Balance'}
+                  {adminLoading ? t.injecting : t.overrideBtn}
                 </button>
               </form>
             </div>
@@ -615,14 +758,14 @@ export default function BottomTabs({
                   borderRadius: '6px',
                   padding: '16px'
                 }}>
-                  <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--primary-gold)' }}>Laporan Alokasi Aset</h4>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--primary-gold)' }}>{t.allocationReport}</h4>
                   <div style={{ fontSize: '24px', fontWeight: 'bold', margin: '4px 0 12px 0' }}>
                     {totalNAV.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>USDT (NAV)</span>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', marginBottom: '6px' }}>
-                    <span style={{ color: 'var(--primary-gold)' }}>Spot Account: {totalSpotValue.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT</span>
-                    <span style={{ color: '#a855f7' }}>Futures Account: {totalFuturesValue.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT</span>
+                    <span style={{ color: 'var(--primary-gold)' }}>{t.spotAccount}: {totalSpotValue.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT</span>
+                    <span style={{ color: '#a855f7' }}>{t.futuresAccount}: {totalFuturesValue.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT</span>
                   </div>
 
                   {/* Ratio bar */}
@@ -651,23 +794,23 @@ export default function BottomTabs({
                   borderRadius: '6px',
                   padding: '16px'
                 }}>
-                  <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--green-bybit)' }}>Ringkasan PnL Kumulatif</h4>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--green-bybit)' }}>{t.pnlSummary}</h4>
                   <div style={{ fontSize: '24px', fontWeight: 'bold', margin: '4px 0 4px 0', color: 'var(--green-bybit)' }}>
                     +{cumPnLVal.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '12px' }}>USDT</span>
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--green-bybit)', fontWeight: 600, marginBottom: '16px' }}>
-                    Tingkat Pengembalian Akumulatif: +{cumPct}%
+                    {t.returnRate} +{cumPct}%
                   </div>
 
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-                    * Perhitungan PnL diperbarui setiap 24 jam dengan menggunakan penutupan harga harian Mark Price Bybit.
+                    {t.pnlHelp}
                   </div>
                 </div>
 
               </div>
 
               {/* PNL ANALYSIS PERIODS GRID */}
-              <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--primary-gold)' }}>Analisis Kinerja Berkala (Spot & Futures)</h4>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--primary-gold)' }}>{t.performanceAnalysis}</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                 
                 {/* 7 Day PnL */}
@@ -677,9 +820,9 @@ export default function BottomTabs({
                   borderRadius: '6px',
                   padding: '12px'
                 }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>7-Day PnL</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.pnl7dLabel}</div>
                   <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-bybit)' }}>
-                    +{pnl7d.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT
+                    +{pnl7d.toLocaleString(lang === 'id' ? 'id-ID' : 'en-US', { maximumFractionDigits: 2 })} USDT
                   </div>
                   <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-bybit)', fontWeight: 600 }}>
                     +{pct7d}%
@@ -693,9 +836,9 @@ export default function BottomTabs({
                   borderRadius: '6px',
                   padding: '12px'
                 }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>30-Day PnL</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.pnl30dLabel}</div>
                   <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-bybit)' }}>
-                    +{pnl30d.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT
+                    +{pnl30d.toLocaleString(lang === 'id' ? 'id-ID' : 'en-US', { maximumFractionDigits: 2 })} USDT
                   </div>
                   <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-bybit)', fontWeight: 600 }}>
                     +{pct30d}%
@@ -709,9 +852,9 @@ export default function BottomTabs({
                   borderRadius: '6px',
                   padding: '12px'
                 }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>90-Day PnL</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.pnl90dLabel}</div>
                   <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--green-bybit)' }}>
-                    +{pnl90d.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT
+                    +{pnl90d.toLocaleString(lang === 'id' ? 'id-ID' : 'en-US', { maximumFractionDigits: 2 })} USDT
                   </div>
                   <div style={{ fontSize: '11.5px', marginTop: '4px', color: 'var(--green-bybit)', fontWeight: 600 }}>
                     +{pct90d}%
@@ -725,7 +868,7 @@ export default function BottomTabs({
                   borderRadius: '6px',
                   padding: '12px'
                 }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Kumulatif Keseluruhan</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.totalCumulative}</div>
                   <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '6px', color: 'var(--primary-gold)' }}>
                     +{cumPnLVal.toLocaleString('id-ID', { maximumFractionDigits: 2 })} USDT
                   </div>

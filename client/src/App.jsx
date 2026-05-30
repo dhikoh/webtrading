@@ -28,6 +28,11 @@ export default function App() {
   
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isWsConnected, setIsWsConnected] = useState(false);
+  const [lang, setLang] = useState(() => localStorage.getItem('trade_lang') || 'id');
+
+  useEffect(() => {
+    localStorage.setItem('trade_lang', lang);
+  }, [lang]);
   
   const accountWsRef = useRef(null);
 
@@ -193,7 +198,7 @@ export default function App() {
 
   // If unauthorized, overlay the custom authentication modal card
   if (!token || !user) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return <Login lang={lang} setLang={setLang} onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
@@ -210,6 +215,8 @@ export default function App() {
         onLogout={handleLogout}
         onOpenHelp={() => setIsHelpOpen(true)}
         isWsConnected={isWsConnected}
+        lang={lang}
+        setLang={setLang}
       />
 
       {/* Main Core Columns Workspace Grid */}
@@ -220,6 +227,7 @@ export default function App() {
           activeSymbol={activeSymbol}
           marketType={marketType}
           onSelectSymbol={handleSelectSymbol}
+          lang={lang}
         />
 
         {/* Center Top: Technical Chart */}
@@ -228,6 +236,7 @@ export default function App() {
           marketType={marketType}
           socket={accountWsRef.current}
           onPriceTick={handlePriceTick}
+          lang={lang}
         />
 
         {/* Rightmost Top: Order Book */}
@@ -236,6 +245,7 @@ export default function App() {
           marketType={marketType}
           socket={accountWsRef.current}
           onSelectPrice={(price) => setLatestPrice(price)}
+          lang={lang}
         />
 
         {/* Rightmost Bottom: Dynamic Order Entry Form Panel */}
@@ -245,6 +255,7 @@ export default function App() {
           latestPrice={latestPrice}
           userWallet={wallets}
           onSubmitSuccess={handleRefreshAccount}
+          lang={lang}
         />
 
         {/* Center Bottom: Positions, Open Orders, Balances, and Super Admin Command Panel */}
@@ -255,6 +266,7 @@ export default function App() {
           openOrders={openOrders}
           onRefresh={handleRefreshAccount}
           floatingPnLs={floatingPnLs}
+          lang={lang}
         />
 
       </main>
@@ -263,6 +275,7 @@ export default function App() {
       <AcademyHelp 
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
+        lang={lang}
       />
 
     </div>

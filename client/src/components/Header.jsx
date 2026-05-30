@@ -10,7 +10,9 @@ export default function Header({
   wallets = [],
   onLogout, 
   onOpenHelp, 
-  isWsConnected 
+  isWsConnected,
+  lang = 'id',
+  setLang
 }) {
   
   const totalSpotValue = wallets.filter(w => w.walletType === 'spot').reduce((acc, curr) => {
@@ -38,6 +40,32 @@ export default function Header({
 
   // Seed Tag Detection based on screenshot!
   const isSeedTag = activeSymbol.toUpperCase().includes('AIGENSYN') || activeSymbol.toUpperCase().includes('MEME') || activeSymbol.toUpperCase().includes('DOGE');
+
+  // Translations
+  const t = {
+    id: {
+      indexPrice: 'Harga Indeks Live',
+      change24h: 'Perubahan 24j',
+      stream: 'Aliran Real-time',
+      guide: 'Panduan Akademi',
+      nav: 'Total Estimasi Nilai Aset (NAV)',
+      logout: 'Keluar dari sesi trading',
+      admin: 'Super Admin',
+      member: 'Anggota',
+      seedTitle: 'Proyek inovatif, memiliki volatilitas dan risiko tinggi.',
+    },
+    en: {
+      indexPrice: 'Live Index Price',
+      change24h: '24h Change',
+      stream: 'Real-time Stream',
+      guide: 'Academy Guide',
+      nav: 'Total Net Asset Value (Spot + Futures perpetual collateral)',
+      logout: 'Sign out of trade session',
+      admin: 'Super Admin',
+      member: 'Member',
+      seedTitle: 'Innovative project, subject to high volatility and risk.',
+    }
+  }[lang];
 
   return (
     <header style={{ 
@@ -72,7 +100,7 @@ export default function Header({
           </span>
           
           {isSeedTag && (
-            <span className="seed-tag" title="Innovative project, subject to high volatility and risk.">
+            <span className="seed-tag" title={t.seedTitle}>
               Seed Tag
             </span>
           )}
@@ -89,7 +117,7 @@ export default function Header({
             }}>
               {latestPrice ? parseFloat(latestPrice).toFixed(activeSymbol.includes('USDT') || activeSymbol.includes('USDC') ? 2 : 6) : '---'}
             </span>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Live Index Price</span>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t.indexPrice}</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -101,11 +129,7 @@ export default function Header({
             }}>
               {percentSign}{percentNum.toFixed(2)}%
             </span>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>24h Change</span>
-          </div>
-
-          <div style={{ display: 'none', flexDirection: 'column' }}>
-            {/* Extended Bybit details can be dynamically added */}
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t.change24h}</span>
           </div>
         </div>
       </div>
@@ -113,10 +137,47 @@ export default function Header({
       {/* Network & User Actions Panel */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         
+        {/* Flag Toggler Pill */}
+        <div style={{
+          display: 'flex',
+          background: 'var(--bg-input)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '12px',
+          padding: '2px',
+          cursor: 'pointer'
+        }} onClick={() => setLang(lang === 'id' ? 'en' : 'id')}>
+          <button style={{
+            fontSize: '10px',
+            border: 'none',
+            borderRadius: '10px',
+            padding: '3px 8px',
+            background: lang === 'id' ? 'var(--primary-gold)' : 'transparent',
+            color: lang === 'id' ? '#000' : 'var(--text-muted)',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            transition: 'all 0.15s'
+          }}>
+            🇮🇩 ID
+          </button>
+          <button style={{
+            fontSize: '10px',
+            border: 'none',
+            borderRadius: '10px',
+            padding: '3px 8px',
+            background: lang === 'en' ? 'var(--primary-gold)' : 'transparent',
+            color: lang === 'en' ? '#000' : 'var(--text-muted)',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            transition: 'all 0.15s'
+          }}>
+            🇬🇧 EN
+          </button>
+        </div>
+
         {/* Connection Pulse indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
           <Radio size={14} style={{ color: isWsConnected ? 'var(--green-bybit)' : 'var(--red-bybit)' }} />
-          <span>Real-time Stream</span>
+          <span>{t.stream}</span>
         </div>
 
         {/* Dynamic Help Center Button */}
@@ -138,7 +199,7 @@ export default function Header({
           className="header-action-btn"
         >
           <HelpCircle size={15} style={{ color: 'var(--primary-gold)' }} />
-          <span>Academy Guide</span>
+          <span>{t.guide}</span>
         </button>
 
         {/* NAV Balance HUD */}
@@ -153,7 +214,7 @@ export default function Header({
             borderRadius: '4px',
             fontSize: '11px',
             color: 'var(--text-muted)'
-          }} title="Total Net Asset Value (Spot + Futures perpetual collateral)">
+          }} title={t.nav}>
             <Wallet size={12} style={{ color: 'var(--primary-gold)' }} />
             <span>NAV: <strong style={{ color: 'var(--primary-gold)', fontFamily: 'monospace' }}>{totalNAV.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</strong></span>
             <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
@@ -186,7 +247,7 @@ export default function Header({
             borderRadius: '2px', 
             textTransform: 'uppercase'
           }}>
-            {user?.role === 'admin' ? 'Super Admin' : 'Member'}
+            {user?.role === 'admin' ? t.admin : t.member}
           </span>
         </div>
 
@@ -204,7 +265,7 @@ export default function Header({
           }}
           onMouseEnter={(e) => e.currentTarget.style.color = 'var(--red-bybit)'}
           onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-          title="Sign out of trade session"
+          title={t.logout}
         >
           <LogOut size={18} />
         </button>

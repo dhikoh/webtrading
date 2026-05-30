@@ -1,7 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 
-export default function OrderBook({ activeSymbol, marketType, socket, onSelectPrice }) {
+export default function OrderBook({ activeSymbol, marketType, socket, onSelectPrice, lang = 'id' }) {
+  const t = {
+    id: {
+      orderBook: 'Buku Order',
+      price: 'Harga',
+      size: 'Ukuran',
+      total: 'Total',
+      establishing: 'Menghubungkan Feed...'
+    },
+    en: {
+      orderBook: 'Order Book',
+      price: 'Price',
+      size: 'Size',
+      total: 'Total',
+      establishing: 'Establishing Feed...'
+    }
+  }[lang];
   const [bids, setBids] = useState([]);
   const [asks, setAsks] = useState([]);
   const [midPrice, setMidPrice] = useState(null);
@@ -70,15 +86,15 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
       
       {/* Header bar */}
       <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)', fontWeight: 600, fontSize: '11px', display: 'flex', justifyContent: 'space-between' }}>
-        <span>Order Book</span>
+        <span>{t.orderBook}</span>
         <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>Real-time WS</span>
       </div>
 
       {/* Grid Header Columns */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '6px 12px', color: 'var(--text-muted)', fontSize: '10px', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-        <span>Price ({activeSymbol.includes('USDT') || activeSymbol.includes('USDC') ? 'USDT' : 'Quote'})</span>
-        <span style={{ textAlign: 'right' }}>Size</span>
-        <span style={{ textAlign: 'right' }}>Total</span>
+        <span>{t.price} ({activeSymbol.includes('USDT') || activeSymbol.includes('USDC') ? 'USDT' : 'Quote'})</span>
+        <span style={{ textAlign: 'right' }}>{t.size}</span>
+        <span style={{ textAlign: 'right' }}>{t.total}</span>
       </div>
 
       {/* Book Panel contents */}
@@ -127,7 +143,7 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
               <span>{midPrice.toFixed(activeSymbol.includes('USDT') || activeSymbol.includes('USDC') ? 2 : 5)}</span>
             </div>
           ) : (
-            <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>Establishing Feed...</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{t.establishing}</span>
           )}
         </div>
 

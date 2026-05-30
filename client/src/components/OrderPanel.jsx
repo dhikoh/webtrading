@@ -7,7 +7,8 @@ export default function OrderPanel({
   marketType, 
   latestPrice, 
   userWallet, 
-  onSubmitSuccess 
+  onSubmitSuccess,
+  lang = 'id'
 }) {
   const [side, setSide] = useState('BUY'); // 'BUY' | 'SELL'
   const [orderType, setOrderType] = useState('LIMIT'); // 'LIMIT' | 'MARKET' | 'STOP_LIMIT' | 'STOP_MARKET' | 'TRAILING_STOP'
@@ -25,6 +26,46 @@ export default function OrderPanel({
 
   const baseAsset = activeSymbol.replace('USDT', '').replace('USDC', '').replace('BNB', '').replace('BTC', '');
   const quoteAsset = activeSymbol.replace(baseAsset, '');
+
+  // Translations
+  const t = {
+    id: {
+      buyLong: 'BELI (Long)',
+      sellShort: 'JUAL (Short)',
+      adjustLev: 'Sesuaikan Leverage:',
+      priceLabel: 'Harga',
+      qtyLabel: 'Kuantitas',
+      stopTrigger: 'Pemicu Harga Stop',
+      triggerPlaceholder: 'Harga Pemicu',
+      callbackLabel: 'Rasio Callback Trailing (%)',
+      reversalHelp: `Melacak titik ekstrem. Memicu beli/jual pada pembalikan arah sebesar ${callbackRate}%.`,
+      reduceOnly: 'Reduce-Only (Kurangi Posisi Saja)',
+      available: 'Margin Tersedia:',
+      submitting: 'Mengirimkan...',
+      buyBtn: 'Beli Long',
+      sellBtn: 'Jual Short',
+      sessionError: 'Sesi berakhir. Silakan masuk kembali.',
+      submitError: 'Gagal mengirimkan order.'
+    },
+    en: {
+      buyLong: 'BUY (Long)',
+      sellShort: 'SELL (Short)',
+      adjustLev: 'Adjust Leverage:',
+      priceLabel: 'Price',
+      qtyLabel: 'Quantity',
+      stopTrigger: 'Stop Price Trigger',
+      triggerPlaceholder: 'Trigger Price',
+      callbackLabel: 'Trailing Callback Rate (%)',
+      reversalHelp: `Tracks extreme watermark. Triggers buy/sell on ${callbackRate}% reversal peak.`,
+      reduceOnly: 'Reduce-Only (Enforce Position Size Reduction)',
+      available: 'Available Margin:',
+      submitting: 'Submitting...',
+      buyBtn: 'Buy Long',
+      sellBtn: 'Sell Short',
+      sessionError: 'Session expired. Please log in again.',
+      submitError: 'Failed to submit order.'
+    }
+  }[lang];
 
   // Synchronize price field if user clicks order book price or live ticks
   useEffect(() => {
@@ -66,7 +107,7 @@ export default function OrderPanel({
 
     const token = localStorage.getItem('trade_token');
     if (!token) {
-      setError('Session expired. Please log in again.');
+      setError(t.sessionError);
       setLoading(false);
       return;
     }
@@ -96,7 +137,7 @@ export default function OrderPanel({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to submit order.');
+        throw new Error(data.error || t.submitError);
       }
 
       setSuccessMsg(data.message);
@@ -156,7 +197,7 @@ export default function OrderPanel({
           }}
           onClick={() => setSide('BUY')}
         >
-          BUY (Long)
+          {t.buyLong}
         </button>
         <button
           style={{
@@ -171,7 +212,7 @@ export default function OrderPanel({
           }}
           onClick={() => setSide('SELL')}
         >
-          SELL (Short)
+          {t.sellShort}
         </button>
       </div>
 
@@ -208,7 +249,7 @@ export default function OrderPanel({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <ShieldAlert size={11} style={{ color: 'var(--primary-gold)' }} />
-                <span>Adjust Leverage:</span>
+                <span>{t.adjustLev}</span>
               </span>
               <span style={{ color: 'var(--primary-gold)', fontWeight: 700, fontSize: '12px' }}>{leverage}x</span>
             </div>
@@ -237,7 +278,7 @@ export default function OrderPanel({
         {/* Inputs Cards */}
         {orderType !== 'MARKET' && (
           <div className="form-group">
-            <label>Price ({quoteAsset})</label>
+            <label>{t.priceLabel} ({quoteAsset})</label>
             <input
               type="number"
               step="any"
@@ -251,7 +292,7 @@ export default function OrderPanel({
         )}
 
         <div className="form-group">
-          <label>Quantity ({baseAsset})</label>
+          <label>{t.qtyLabel} ({baseAsset})</label>
           <input
             type="number"
             step="any"
@@ -266,14 +307,14 @@ export default function OrderPanel({
         {/* Conditional Stop Trigger field */}
         {(orderType === 'STOP_LIMIT' || orderType === 'STOP_MARKET') && (
           <div className="form-group" style={{ borderLeft: '2px solid var(--primary-gold)', paddingLeft: '8px' }}>
-            <label style={{ color: 'var(--primary-gold)' }}>Stop Price Trigger ({quoteAsset})</label>
+            <label style={{ color: 'var(--primary-gold)' }}>{t.stopTrigger} ({quoteAsset})</label>
             <input
               type="number"
               step="any"
               className="form-input"
               value={stopPrice}
               onChange={(e) => setStopPrice(e.target.value)}
-              placeholder="Trigger Price"
+              placeholder={t.triggerPlaceholder}
               required
             />
           </div>
@@ -282,7 +323,7 @@ export default function OrderPanel({
         {/* Conditional Trailing Stop parameters fields */}
         {orderType === 'TRAILING_STOP' && (
           <div className="form-group" style={{ borderLeft: '2px solid var(--primary-gold)', paddingLeft: '8px' }}>
-            <label style={{ color: 'var(--primary-gold)' }}>Trailing Callback Rate (%)</label>
+            <label style={{ color: 'var(--primary-gold)' }}>{t.callbackLabel}</label>
             <input
               type="number"
               step="0.1"
@@ -295,7 +336,7 @@ export default function OrderPanel({
               required
             />
             <span style={{ fontSize: '9.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Tracks extreme watermark. Triggers buy/sell on {callbackRate}% reversal peak.
+              {t.reversalHelp}
             </span>
           </div>
         )}
@@ -332,7 +373,7 @@ export default function OrderPanel({
               style={{ cursor: 'pointer' }}
             />
             <label htmlFor="reduce-only-check" style={{ color: 'var(--text-active)', fontSize: '11px', cursor: 'pointer', userSelect: 'none' }}>
-              Reduce-Only (Enforce Position Size Reduction)
+              {t.reduceOnly}
             </label>
           </div>
         )}
@@ -354,7 +395,7 @@ export default function OrderPanel({
 
         {/* Collateral Ledger Available details */}
         <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', fontSize: '11.5px' }}>
-          <span style={{ color: 'var(--text-muted)' }}>Available Margin:</span>
+          <span style={{ color: 'var(--text-muted)' }}>{t.available}</span>
           <span style={{ fontWeight: 600, color: 'var(--text-active)' }}>
             {getAvailableBalance().toFixed(4)} {marketType === 'futures' ? 'USDT' : (side === 'BUY' ? quoteAsset : baseAsset)}
           </span>
@@ -380,7 +421,7 @@ export default function OrderPanel({
           onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
           onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
         >
-          {loading ? 'Submitting...' : `${side === 'BUY' ? 'Buy Long' : 'Sell Short'} ${baseAsset}`}
+          {loading ? t.submitting : `${side === 'BUY' ? t.buyBtn : t.sellBtn} ${baseAsset}`}
         </button>
 
       </form>
