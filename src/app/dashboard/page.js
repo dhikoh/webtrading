@@ -32,32 +32,15 @@ export default function DashboardOverview() {
     loadSummary();
   }, []);
 
-  // Poll live tickers from Binance
+  // Poll live tickers from Binance (proxied through our server-side API to bypass country geoblocks)
   useEffect(() => {
     async function fetchTickers() {
       try {
-        const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
-        const pRequests = symbols.map(async sym => {
-          const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${sym}`);
-          if (res.ok) {
-            const ticker = await res.json();
-            return {
-              symbol: sym,
-              price: parseFloat(ticker.lastPrice).toFixed(2),
-              change: parseFloat(ticker.priceChangePercent).toFixed(2)
-            };
-          }
-          return null;
-        });
-
-        const results = await Promise.all(pRequests);
-        const newPrices = { ...livePrices };
-        results.forEach(res => {
-          if (res) {
-            newPrices[res.symbol] = { price: res.price, change: res.change };
-          }
-        });
-        setLivePrices(newPrices);
+        const res = await fetch('/api/binance/tickers');
+        if (res.ok) {
+          const prices = await res.json();
+          setLivePrices(prev => ({ ...prev, ...prices }));
+        }
       } catch (err) {
         console.error("Live ticker poll error:", err);
       }
