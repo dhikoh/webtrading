@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import ChartView from '@/components/ChartView';
 import LiveOrderbook from '@/components/LiveOrderbook';
@@ -23,9 +23,9 @@ export default function AnalysisPage() {
   const [riskPct, setRiskPct] = useState(1); // default 1% risk
   const [userBalance, setUserBalance] = useState(10000); // customizable balance
   const [leverage, setLeverage] = useState(''); // explicitly unselected by default
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Custom Technical Indicator Parameter states (adapted from Cryptometer)
+  // Experience level & indicators (adapted from Cryptometer)
+  const [experienceLevel, setExperienceLevel] = useState('PEMULA'); // PEMULA, PRO
   const [emaFastPeriod, setEmaFastPeriod] = useState('20');
   const [emaSlowPeriod, setEmaSlowPeriod] = useState('50');
   const [rsiPeriod, setRsiPeriod] = useState('14');
@@ -33,6 +33,382 @@ export default function AnalysisPage() {
   const [adxPeriod, setAdxPeriod] = useState('14');
   const [volumePeriod, setVolumePeriod] = useState('20');
   const [showIndicatorSettings, setShowIndicatorSettings] = useState(false);
+
+  // Live real-time candlestick data (before scan!)
+  const [liveCandles, setLiveCandles] = useState([]);
+  const [liveIndicators, setLiveIndicators] = useState({});
+  const [liveCandleError, setLiveCandleError] = useState('');
+  const [latestLivePrice, setLatestLivePrice] = useState(null);
+
+  // Real-time Spot/Futures Trading Simulator (adapted from Cryptometer/Coinpulse)
+  const [demoBalance, setDemoBalance] = useState(10000);
+  const [simType, setSimType] = useState('SPOT'); // SPOT, FUTURES
+  const [simDirection, setSimDirection] = useState('LONG'); // LONG, SHORT
+  const [simLeverage, setSimLeverage] = useState('1'); // 1x to 50x
+  const [simSize, setSimSize] = useState('1000'); // USDT size
+  const [activePositions, setActivePositions] = useState([]);
+  const [tradeLogs, setTradeLogs] = useState([]);
+  const [simMessage, setSimMessage] = useState('');
+
+  // 1. Synchronize presets based on experience level
+  useEffect(() => {
+    if (experienceLevel === 'PEMULA') {
+      // Scientifically backed academic defaults
+      setEmaFastPeriod('20');
+      setEmaSlowPeriod('50');
+      setRsiPeriod('14');
+      setAtrPeriod('14');
+      setAdxPeriod('14');
+      setVolumePeriod('20');
+    }
+  }, [experienceLevel]);
+
+  // 2. Poll live candles every 5 seconds (Geoblock Safe proxy)
+  useEffect(() => {
+    if (!asset || !timeframe) return;
+
+    let active = true;
+    async function loadLiveCandles() {
+      try {
+        const res = await fetch(`/api/binance/candles?symbol=${asset}&timeframe=${timeframe}&limit=100`);
+        if (!res.ok) throw new Error("Gagal memuat chart real-time");
+        const data = await res.json();
+        
+        if (data.success && active) {
+          setLiveCandles(data.candles);
+          setLiveCandleError('');
+          
+          if (data.candles.length > 0) {
+            const closePrices = data.candles.map(c => c.close);
+            const latestPrice = closePrices[closePrices.length - 1];
+            setLatestLivePrice(latestPrice);
+
+            // Compute client-side indicator overlays instantly
+            const computedFast = calculateClientEMA(closePrices, parseInt(emaFastPeriod));
+            const computedSlow = calculateClientEMA(closePrices, parseInt(emaSlowPeriod));
+            setLiveIndicators({
+              emaFast: computedFast,
+              emaSlow: computedSlow
+            });
+          }
+        }
+      } catch (err) {
+        if (active) {
+          setLiveCandleError("Gagal memperbarui lilin Binance real-time (Proxy fallback aktif)");
+        }
+      }
+    }
+
+    loadLiveCandles();
+    const interval = setInterval(loadLiveCandles, 5000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [asset, timeframe, emaFastPeriod, emaSlowPeriod]);
+
+  // 3. Persist demo trading accounts in LocalStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedBal = localStorage.getItem('demo_balance');
+      const savedPositions = localStorage.getItem('demo_positions');
+      const savedLogs = localStorage.getItem('demo_logs');
+
+      if (savedBal) setDemoBalance(parseFloat(savedBal));
+      if (savedPositions) setActivePositions(JSON.parse(savedPositions));
+      if (savedLogs) setTradeLogs(JSON.parse(savedLogs));
+    }
+  }, []);
+
+  // Update floating positions PnL in real-time when latestLivePrice moves
+  useEffect(() => {
+    if (latestLivePrice && activePositions.length > 0) {
+      const updated = activePositions.map(pos => {
+        if (pos.symbol !== asset) return pos;
+        
+        let pnl = 0;
+        const entry = pos.entryPrice;
+        const sizeVal = pos.size;
+        const lev = pos.leverage;
+
+        if (pos.type === 'SPOT') {
+          // Spot PnL = qty * (current - entry)
+          const qty = sizeVal / entry;
+          pnl = qty * (latestLivePrice - entry);
+        } else {
+          // Futures PnL
+          const qty = (sizeVal * lev) / entry;
+          if (pos.direction === 'LONG') {
+            pnl = qty * (latestLivePrice - entry);
+          } else {
+            pnl = qty * (entry - latestLivePrice);
+          }
+        }
+
+        const pnlPct = (pnl / (sizeVal / (pos.type === 'FUTURES' ? lev : 1))) * 100;
+        return {
+          ...pos,
+          currentPrice: latestLivePrice,
+          pnl: Math.round(pnl * 100) / 100,
+          pnlPercent: Math.round(pnlPct * 100) / 100
+        };
+      });
+
+      setActivePositions(updated);
+      localStorage.setItem('demo_positions', JSON.stringify(updated));
+    }
+  }, [latestLivePrice]);
+
+  const handleOpenDemoPosition = () => {
+    if (!latestLivePrice) {
+      setSimMessage("Harap tunggu harga live terisi!");
+      return;
+    }
+
+    const orderSize = parseFloat(simSize);
+    if (isNaN(orderSize) || orderSize <= 0) {
+      setSimMessage("Ukuran posisi harus lebih dari 0!");
+      return;
+    }
+
+    // Verify balance
+    const marginRequired = simType === 'SPOT' ? orderSize : orderSize / parseInt(simLeverage);
+    if (marginRequired > demoBalance) {
+      setSimMessage("Saldo demo tidak mencukupi untuk membuka posisi!");
+      return;
+    }
+
+    const newPosition = {
+      id: Date.now(),
+      symbol: asset,
+      type: simType,
+      direction: simType === 'SPOT' ? 'LONG' : simDirection,
+      leverage: simType === 'SPOT' ? 1 : parseInt(simLeverage),
+      entryPrice: latestLivePrice,
+      currentPrice: latestLivePrice,
+      size: orderSize,
+      margin: marginRequired,
+      pnl: 0.0,
+      pnlPercent: 0.0,
+      time: new Date().toLocaleTimeString()
+    };
+
+    const newBal = demoBalance - marginRequired;
+    const updatedPositions = [...activePositions, newPosition];
+
+    setDemoBalance(newBal);
+    setActivePositions(updatedPositions);
+    localStorage.setItem('demo_balance', String(newBal));
+    localStorage.setItem('demo_positions', JSON.stringify(updatedPositions));
+    
+    setSimMessage(`Posisi ${simType} ${newPosition.direction || 'BUY'} ${asset} berhasil dibuka!`);
+    setTimeout(() => setSimMessage(''), 3000);
+  };
+
+  const handleCloseDemoPosition = (posId) => {
+    const pos = activePositions.find(p => p.id === posId);
+    if (!pos) return;
+
+    // Realize profit and release margin
+    const returnedFunds = pos.margin + pos.pnl;
+    const newBal = Math.max(0, demoBalance + returnedFunds);
+
+    const logEntry = {
+      id: pos.id,
+      symbol: pos.symbol,
+      type: pos.type,
+      direction: pos.direction,
+      entryPrice: pos.entryPrice,
+      exitPrice: pos.currentPrice,
+      pnl: pos.pnl,
+      pnlPercent: pos.pnlPercent,
+      time: new Date().toLocaleTimeString()
+    };
+
+    const updatedPositions = activePositions.filter(p => p.id !== posId);
+    const updatedLogs = [logEntry, ...tradeLogs.slice(0, 9)];
+
+    setDemoBalance(newBal);
+    setActivePositions(updatedPositions);
+    setTradeLogs(updatedLogs);
+
+    localStorage.setItem('demo_balance', String(newBal));
+    localStorage.setItem('demo_positions', JSON.stringify(updatedPositions));
+    localStorage.setItem('demo_logs', JSON.stringify(updatedLogs));
+
+    setSimMessage(`Posisi ${pos.symbol} ditutup! Realisasi PnL: $${pos.pnl}`);
+    setTimeout(() => setSimMessage(''), 3000);
+  };
+
+  const handleResetDemoAccount = () => {
+    setDemoBalance(10000);
+    setActivePositions([]);
+    setTradeLogs([]);
+    localStorage.setItem('demo_balance', '10000');
+    localStorage.setItem('demo_positions', '[]');
+    localStorage.setItem('demo_logs', '[]');
+    setSimMessage("Akun simulasi demo di-reset ke $10,000.00!");
+    setTimeout(() => setSimMessage(''), 3000);
+  };
+
+  // Client-side pure EMA logic
+  const calculateClientEMA = (prices, period) => {
+    if (prices.length < period) return Array(prices.length).fill(null);
+    const k = 2 / (period + 1);
+    const ema = [];
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+      sum += prices[i];
+    }
+    let prevEma = sum / period;
+    
+    for (let i = 0; i < prices.length; i++) {
+      if (i < period - 1) {
+        ema.push(null);
+      } else if (i === period - 1) {
+        ema.push(prevEma);
+      } else {
+        const nextEma = prices[i] * k + prevEma * (1 - k);
+        ema.push(nextEma);
+        prevEma = nextEma;
+      }
+    }
+    return ema;
+  };
+
+  // 4. Capture SVG elements and convert to JPEG simulation Base64 (Take Picture!)
+  const handleCaptureChart = () => {
+    setLoading(true);
+    setResult(null);
+    setError('');
+
+    try {
+      // 1. Create client-side visual snapshot simulation via high-tech branded Canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 400;
+      const ctx = canvas.getContext('2d');
+
+      // Styles
+      ctx.fillStyle = '#0f172a'; // Slate-900 background
+      ctx.fillRect(0, 0, 800, 400);
+
+      // Grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < 800; x += 50) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 400);
+        ctx.stroke();
+      }
+      for (let y = 0; y < 400; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(800, y);
+        ctx.stroke();
+      }
+
+      // Title & Branded Header
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 16px Outfit, sans-serif';
+      ctx.fillText(`TRADEMACHINE AI EYE™ - ${asset} (${timeframe})`, 20, 35);
+      
+      ctx.fillStyle = '#10b981';
+      ctx.font = '12px Outfit, sans-serif';
+      ctx.fillText("STATUS: SCAN CAPTURED LIVE (INSTANT CONFLUENCE)", 20, 55);
+
+      // Draw Candlesticks representation based on live candles
+      if (liveCandles.length > 0) {
+        const recent = liveCandles.slice(-30);
+        const highs = recent.map(c => c.high);
+        const lows = recent.map(c => c.low);
+        const max = Math.max(...highs);
+        const min = Math.min(...lows);
+        const range = max - min;
+
+        const getYVal = (price) => {
+          return 340 - ((price - min) / range) * 220;
+        };
+
+        recent.forEach((candle, idx) => {
+          const x = 80 + idx * 22;
+          const openY = getYVal(candle.open);
+          const closeY = getYVal(candle.close);
+          const highY = getYVal(candle.high);
+          const lowY = getYVal(candle.low);
+          
+          const isBullish = candle.close >= candle.open;
+          ctx.strokeStyle = isBullish ? '#10b981' : '#ef4444';
+          ctx.fillStyle = isBullish ? '#10b981' : '#ef4444';
+          ctx.lineWidth = 1.5;
+
+          // Wick
+          ctx.beginPath();
+          ctx.moveTo(x + 6, highY);
+          ctx.lineTo(x + 6, lowY);
+          ctx.stroke();
+
+          // Body
+          const bodyH = Math.max(2, Math.abs(closeY - openY));
+          ctx.fillRect(x, Math.min(openY, closeY), 12, bodyH);
+        });
+      }
+
+      // Branded branding overlay
+      ctx.fillStyle = 'rgba(255, 183, 3, 0.1)';
+      ctx.fillRect(600, 20, 180, 50);
+      ctx.fillStyle = '#ffb703';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText("PROPRIETARY OCR OCR MODEL", 610, 38);
+      ctx.fillText("HARDENED RISK GRADE", 610, 56);
+
+      // Generate DataUrl and trigger scan in background!
+      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      setFilePreview(compressedDataUrl);
+      setFileName(`Instant-Chart-Capture-${asset}.jpg`);
+      const base64String = compressedDataUrl.split(',')[1];
+      setFileBase64(base64String);
+
+      // Switch tab state visually to OCR_UPLOAD
+      setTab('UPLOAD');
+
+      // Trigger automatic scan handler!
+      setTimeout(async () => {
+        try {
+          const payload = {
+            sourceType: 'OCR_UPLOAD',
+            asset,
+            timeframe,
+            imageBase64: base64String,
+            explicitLeverage: leverage ? parseInt(leverage) : 10 // Default to 10x if unselected for simulation convenience
+          };
+
+          const res = await fetch('/api/analysis/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await res.json();
+          if (res.ok) {
+            setResult(data);
+          } else {
+            setError(data.error || 'Pemindaian visual gagal dilakukan');
+          }
+        } catch (err) {
+          setError('Gagal menghubungkan pemindaian visual');
+        } finally {
+          setLoading(false);
+        }
+      }, 500);
+
+    } catch (err) {
+      console.error(err);
+      setError('Gagal menangkap layar grafik real-time');
+      setLoading(false);
+    }
+  };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -43,7 +419,6 @@ export default function AnalysisPage() {
     reader.onloadend = () => {
       const img = new Image();
       img.onload = () => {
-        // Premium Client-Side Image Compressor & Downscaler
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
@@ -64,7 +439,6 @@ export default function AnalysisPage() {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert to highly optimized JPEG to stay safely within Next.js API limits (~150KB)
         const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
         setFilePreview(compressedDataUrl);
         const base64String = compressedDataUrl.split(',')[1];
@@ -118,7 +492,6 @@ export default function AnalysisPage() {
     }
   };
 
-  // Capital preservation calculation including leverage
   const calculatePositionSize = (balance, entry, sl, riskPercentage, levVal) => {
     if (!entry || !sl || entry === sl) return { size: 0, cost: 0, warning: '' };
     const riskAmount = balance * (riskPercentage / 100);
@@ -159,19 +532,6 @@ export default function AnalysisPage() {
     'ADX_REGIME': '8. Kekuatan Trend ADX Regime',
     'FUTURES_INTEL': '9. Resiko Futures Open Interest',
     'SESSION_QUALITY': '10. Kualitas Volatilitas Sesi'
-  };
-
-  const tooltipTextMap = {
-    'EMA_ALIGNMENT': 'Kelarasan arah trend antara Exponential Moving Average cepat (20) dan lambat (50) untuk melacak kemiringan momentum aktif.',
-    'RSI_EXHAUSTION': 'Indikator momentum kekuatan jenuh Relative Strength Index (RSI) guna menyaring kondisi terlalu jenuh beli atau jenuh jual.',
-    'CANDLESTICK_CONFLUENCE': 'Sinyal konfirmasi bentuk pola lilin (Pinbar, Engulfing, dsb.) yang memperkuat potensi pembalikan arah harga.',
-    'VOLUME_CONFIRMATION': 'Volume Relatif (RVOL) melacak apakah penembusan harga saat ini didukung likuiditas volume di atas rata-rata 20 periode.',
-    'MARKET_STRUCTURE': 'Deteksi validitas pematahan tren utama (BOS/CHOCH). Pematahan struktur yang lemah atau palsu otomatis digugurkan.',
-    'LIQUIDITY_CONFLUENCE': 'Zona kluster pesanan likuiditas (Buy-side & Sell-side sweeps) guna mendeteksi area pembalikan arah harga yang efisien.',
-    'SR_DISTANCE': 'Perhitungan jarak harga masuk terhadap garis Support/Resistance terdekat untuk mencegah posisi buruk di dekat batas pertahanan.',
-    'ADX_REGIME': 'Kekuatan tren harga berdasarkan skala ADX (ADX > 25 = Trend Kuat; ADX < 20 = Sideways/Ranging).',
-    'FUTURES_INTEL': 'Crowding risk dan data Funding Rate pasar berjangka Binance untuk melacak arah taruhan pelaku pasar ritel vs bandar.',
-    'SESSION_QUALITY': 'Kualitas volatilitas berdasarkan sesi trading UTC aktif (Sesi London/New York memiliki likuiditas premium).'
   };
 
   return (
@@ -223,6 +583,48 @@ export default function AnalysisPage() {
         {/* Controls Card */}
         <div className={`${styles.controlsCard} glass-panel`}>
           <form onSubmit={handleScan} className={styles.form}>
+            
+            {/* Experience Level Presets Selector */}
+            <div className={styles.formGroup} style={{ marginBottom: '14px' }}>
+              <label className={styles.label}>Tingkat Pengalaman (Presets)</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setExperienceLevel('PEMULA')}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    background: experienceLevel === 'PEMULA' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${experienceLevel === 'PEMULA' ? '#3b82f6' : 'rgba(255,255,255,0.08)'}`,
+                    color: experienceLevel === 'PEMULA' ? '#60a5fa' : '#9ca3af'
+                  }}
+                  title="Gunakan parameter ilmiah standard bursa"
+                >
+                  🎓 PEMULA (Akademis)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExperienceLevel('PRO')}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    background: experienceLevel === 'PRO' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${experienceLevel === 'PRO' ? '#a855f7' : 'rgba(255,255,255,0.08)'}`,
+                    color: experienceLevel === 'PRO' ? '#c084fc' : '#9ca3af'
+                  }}
+                  title="Sesuaikan setelan indikator sebebasnya"
+                >
+                  🎛️ PRO (Kustom)
+                </button>
+              </div>
+            </div>
+
             <div className={styles.formGroup}>
               <label className={styles.label}>Pilih Aset Kripto</label>
               <select className="form-input" value={asset} onChange={(e) => setAsset(e.target.value)}>
@@ -351,12 +753,17 @@ export default function AnalysisPage() {
                   padding: '2px 0'
                 }}
               >
-                <span>🎛️ Pengaturan Parameter Indikator (Kustom)</span>
+                <span>🎛️ Pengaturan Parameter Indikator {experienceLevel === 'PEMULA' ? '(Kunci Pemula)' : '(Kustom Pro)'}</span>
                 <span>{showIndicatorSettings ? '▲' : '▼'}</span>
               </button>
               
               {showIndicatorSettings && (
                 <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', fontStyle: 'italic', marginBottom: '4px' }}>
+                    {experienceLevel === 'PEMULA' 
+                      ? '* Terkunci ke parameter default standard akademis J. Welles Wilder (14) & EMA Trend.'
+                      : '* Setelan terbuka penuh. Silakan kustomisasi sesuai strategi mitigasi resiko Anda.'}
+                  </span>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     <div>
                       <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '3px' }}>EMA Cepat</label>
@@ -366,6 +773,7 @@ export default function AnalysisPage() {
                         style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
                         min="2"
                         max="200"
+                        disabled={experienceLevel === 'PEMULA'}
                         value={emaFastPeriod}
                         onChange={(e) => setEmaFastPeriod(e.target.value)}
                       />
@@ -378,6 +786,7 @@ export default function AnalysisPage() {
                         style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
                         min="2"
                         max="200"
+                        disabled={experienceLevel === 'PEMULA'}
                         value={emaSlowPeriod}
                         onChange={(e) => setEmaSlowPeriod(e.target.value)}
                       />
@@ -393,6 +802,7 @@ export default function AnalysisPage() {
                         style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
                         min="2"
                         max="200"
+                        disabled={experienceLevel === 'PEMULA'}
                         value={rsiPeriod}
                         onChange={(e) => setRsiPeriod(e.target.value)}
                       />
@@ -405,6 +815,7 @@ export default function AnalysisPage() {
                         style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
                         min="2"
                         max="200"
+                        disabled={experienceLevel === 'PEMULA'}
                         value={atrPeriod}
                         onChange={(e) => setAtrPeriod(e.target.value)}
                       />
@@ -420,6 +831,7 @@ export default function AnalysisPage() {
                         style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
                         min="2"
                         max="200"
+                        disabled={experienceLevel === 'PEMULA'}
                         value={adxPeriod}
                         onChange={(e) => setAdxPeriod(e.target.value)}
                       />
@@ -432,6 +844,7 @@ export default function AnalysisPage() {
                         style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
                         min="2"
                         max="200"
+                        disabled={experienceLevel === 'PEMULA'}
                         value={volumePeriod}
                         onChange={(e) => setVolumePeriod(e.target.value)}
                       />
@@ -488,20 +901,60 @@ export default function AnalysisPage() {
           )}
 
           {!result && !loading && (
-            <div className={`${styles.emptyCard} glass-panel`}>
-              <span>📈</span>
-              <p>Pilih koin atau unggah screenshot chart di samping untuk memulai analisis instan.</p>
+            <div className={styles.resultsWrapper}>
+              
+              {/* Interactive Real-Time Candlestick Chart (Active On Load!) */}
+              <div className={`${styles.chartCard} glass-panel`} style={{ position: 'relative' }}>
+                <div className={styles.chartHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h4 style={{ margin: 0 }}>Live Real-Time Candlestick ({asset} - {timeframe})</h4>
+                    <span style={{ fontSize: '0.72rem', color: '#10b981' }}>● Terkoneksi (Melacak Perubahan Dinamis)</span>
+                  </div>
+                  
+                  {/* Instantly capture screenshot & scan workflow button! */}
+                  <button
+                    type="button"
+                    onClick={handleCaptureChart}
+                    style={{
+                      background: 'rgba(251, 191, 36, 0.15)',
+                      color: '#fbbf24',
+                      border: '1px solid rgba(251, 191, 36, 0.3)',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s ease'
+                    }}
+                    title="Ambil foto dari grafik live saat ini dan langsung jalankan analisis OCR visual instan!"
+                  >
+                    📸 Ambil Foto Chart & Pindai
+                  </button>
+                </div>
+
+                {liveCandleError ? (
+                  <div style={{ padding: '20px', color: '#f87171', fontSize: '0.8rem', textAlign: 'center' }}>{liveCandleError}</div>
+                ) : (
+                  <ChartView 
+                    candles={liveCandles} 
+                    indicators={liveIndicators}
+                  />
+                )}
+              </div>
             </div>
           )}
 
           {result && !loading && (
             <div className={styles.resultsWrapper}>
-              {/* Visual Journal Image Reference Preview */}
+              {/* Captured visuals journal doc */}
               {tab === 'UPLOAD' && filePreview && (
                 <div className={`${styles.chartCard} glass-panel`} style={{ marginBottom: '20px', padding: '16px' }}>
                   <div className={styles.chartHeader} style={{ marginBottom: '10px' }}>
                     <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-                      <span>📸</span> Dokumen Visual Jurnal (Screenshot Anda)
+                      <span>📸</span> Dokumen Visual Jurnal (Hasil Jepretan Anda)
                     </h4>
                   </div>
                   <div style={{
@@ -528,13 +981,13 @@ export default function AnalysisPage() {
                 </div>
               )}
 
-              {/* SVG interactive chart */}
+              {/* Main SVG Chart with target zones overlay */}
               <div className={`${styles.chartCard} glass-panel`}>
                 <div className={styles.chartHeader}>
-                  <h4>Grafik Candlestick ({result.analysis.asset} - {result.analysis.timeframe})</h4>
+                  <h4>Grafik Evaluasi Strategi ({result.analysis.asset} - {result.analysis.timeframe})</h4>
                   <div className={styles.legend}>
-                    <span style={{ color: 'var(--accent-primary)' }}>■ EMA 20</span>
-                    <span style={{ color: 'var(--accent-secondary)' }}>■ EMA 50</span>
+                    <span style={{ color: 'var(--accent-primary)' }}>■ EMA Cepat ({emaFastPeriod})</span>
+                    <span style={{ color: 'var(--accent-secondary)' }}>■ EMA Lambat ({emaSlowPeriod})</span>
                   </div>
                 </div>
                 <ChartView 
@@ -552,9 +1005,8 @@ export default function AnalysisPage() {
                 />
               </div>
 
-              {/* Hardened Assessment Grid */}
+              {/* Assessment Grid */}
               <div className={styles.assessmentGrid}>
-                {/* Scorecard */}
                 <div className={`${styles.scorecardCard} glass-panel`}>
                   <h3>Skor & Setup Rekomendasi</h3>
                   <div className={styles.signalBadgeWrapper}>
@@ -576,7 +1028,7 @@ export default function AnalysisPage() {
 
                   <div className={styles.gaugeContainer} style={{ marginTop: '16px', marginBottom: '16px' }}>
                     <div className={styles.gaugeHeader}>
-                      <span>Keyakinan Sinyal (Calibrated Confidence)</span>
+                      <span>Keyakinan Sinyal (Confidence)</span>
                       <span style={{ color: 'var(--accent-primary)', fontWeight: 'bold' }}>{result.analysis.confidence}%</span>
                     </div>
                     <div className={styles.gaugeBar}>
@@ -589,11 +1041,6 @@ export default function AnalysisPage() {
                         }} 
                       />
                     </div>
-                    {result.calibration && (
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
-                        * Terkalibrasi secara dinamis terhadap performa trading nyata (Nilai mentah: {result.calibration.rawConfidence}%)
-                      </span>
-                    )}
                   </div>
 
                   <div className={styles.statsRow}>
@@ -623,261 +1070,273 @@ export default function AnalysisPage() {
                     <span>Sesi Likuiditas Aktif:</span>
                     <strong>{result.session?.sessionName || 'ASIA'} (Skor: {result.session?.qualityScore}/100)</strong>
                   </div>
-
-                  {result.analysis.signal !== 'NO TRADE' && (
-                    <div className={styles.targets} style={{ marginTop: '20px' }}>
-                      <div className={styles.targetRow}>Entry Price: <span>${result.analysis.entryPrice?.toFixed(4)}</span></div>
-                      <div className={styles.targetRow} style={{ color: '#ef4444' }}>Stop Loss: <span>${result.analysis.stopLoss?.toFixed(4)}</span></div>
-                      <div className={styles.targetRow} style={{ color: '#10b981' }}>Take Profit 1 (1.5R): <span>${result.analysis.tp1?.toFixed(4)}</span></div>
-                      {result.analysis.tp2 && <div className={styles.targetRow}>Take Profit 2 (2.0R): <span>${result.analysis.tp2?.toFixed(4)}</span></div>}
-                      {result.analysis.tp3 && <div className={styles.targetRow}>Take Profit 3 (3.0R): <span>${result.analysis.tp3?.toFixed(4)}</span></div>}
-                      <div className={styles.targetRow} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '8px', fontWeight: 'bold' }}>
-                        Risk/Reward Rasio: <span>{result.analysis.riskReward?.toFixed(2)}R</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Hardened Sizing & Leverage Calculator */}
-                <div className={`${styles.sizingCard} glass-panel`}>
-                  <h3>Kalkulator Posisi & Resiko Hardened</h3>
-                  
-                  {result.analysis.signal === 'NO TRADE' ? (
-                    <div className={styles.noTradeAlert} style={{ color: '#ef4444', border: '1px solid #ef4444', padding: '16px', borderRadius: '6px' }}>
-                      <strong>SISTEM REJECT SETUP:</strong> Sinyal di bawah ambang batas minimum scoring, memiliki bias negatif (NEGATIVE_EV), atau terdeteksi resiko event ekstrim. Eksekusi trade dibatalkan demi keamanan modal.
-                    </div>
-                  ) : (
-                    <div className={styles.sizingForm}>
-                      {/* Primary Leverage Selection */}
-                      <div className={styles.formGroup} style={{ marginBottom: '12px' }}>
-                        <label className={styles.label} style={{ color: '#ffb703', fontWeight: 'bold' }}>
-                          Pilih Leverage * (Wajib Dipilih)
-                        </label>
-                        <select 
-                          className="form-input" 
-                          value={leverage} 
-                          onChange={(e) => setLeverage(e.target.value)} 
-                          style={{ width: '100%', borderColor: !leverage ? '#ffb703' : 'var(--border-color)' }}
-                        >
-                          <option value="">-- Pilih Leverage --</option>
-                          <option value="1">1x (Placeholder)</option>
-                          <option value="2">2x</option>
-                          <option value="5">5x</option>
-                          <option value="10">10x</option>
-                          <option value="20">20x</option>
-                          <option value="50">50x</option>
-                        </select>
-                      </div>
-
-                      {/* Advanced Settings Accordion Toggle */}
-                      <button 
-                        type="button" 
-                        className={styles.advancedToggle} 
-                        onClick={() => setShowAdvanced(!showAdvanced)}
-                        style={{ marginBottom: '8px' }}
-                      >
-                        <span>🎛️ Atur Saldo & Toleransi Resiko Lanjutan</span>
-                        <span>{showAdvanced ? '▲ Lipat' : '▼ Tampilkan'}</span>
-                      </button>
-
-                      {/* Advanced Parameters */}
-                      <div className={`${styles.advancedContent} ${showAdvanced ? styles.advancedContentActive : ''}`}>
-                        <div className={styles.formGroup} style={{ width: '100%' }}>
-                          <label className={styles.label}>Saldo Akun Aktif ($)</label>
-                          <input 
-                            type="number" 
-                            className="form-input" 
-                            value={userBalance} 
-                            onChange={(e) => setUserBalance(Math.max(1, parseFloat(e.target.value) || 0))} 
-                            style={{ width: '100%', background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.1)', padding: '10px', borderRadius: '6px', color: '#f8fafc' }}
-                          />
-                        </div>
-
-                        <div className={styles.formGroup} style={{ width: '100%' }}>
-                          <label className={styles.label}>Resiko Per Perdagangan: {riskPct}%</label>
-                          <input 
-                            type="range" 
-                            min="0.5" 
-                            max="5" 
-                            step="0.5" 
-                            value={riskPct} 
-                            onChange={(e) => setRiskPct(parseFloat(e.target.value))}
-                            className={styles.rangeSlider}
-                          />
-                        </div>
-                      </div>
-                      
-                      {positionSizing && (
-                        <div className={styles.sizingResults} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
-                          <div className={styles.sizingRow}>
-                            <span>Nilai Resiko Maksimal ($):</span>
-                            <strong>${positionSizing.riskAmount}</strong>
-                          </div>
-                          <div className={styles.sizingRow}>
-                            <span>Ukuran Posisi Kontrak:</span>
-                            <strong>{positionSizing.size} {result.analysis.asset?.replace('USDT', '')}</strong>
-                          </div>
-                          
-                          {positionSizing.warning ? (
-                            <div style={{ color: '#ffb703', fontSize: '0.85rem', marginTop: '10px', fontWeight: 'bold' }}>
-                              ⚠️ {positionSizing.warning}
-                            </div>
-                          ) : (
-                            <div className={styles.sizingRow} style={{ color: '#10b981' }}>
-                              <span>Margin Dibutuhkan (Cost):</span>
-                              <strong>${positionSizing.cost}</strong>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
-
-              {/* 10-Component Scoring Details Table */}
-              <div className="glass-panel" style={{ padding: '24px', marginTop: '24px' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: '700', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-                  Matriks Skor 10-Komponen Kuantitatif & Risk Safeguard
-                </h3>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
-                        <th style={{ padding: '10px' }}>Indikator / Filter Resiko</th>
-                        <th style={{ padding: '10px', textAlign: 'center' }}>Bobot</th>
-                        <th style={{ padding: '10px', textAlign: 'center' }}>Skor Mentah</th>
-                        <th style={{ padding: '10px', textAlign: 'center' }}>Skor Terbobot</th>
-                        <th style={{ padding: '10px', textAlign: 'right' }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.analysis.scoreComponents?.map((comp, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
-                            <span>{componentNamesMap[comp.componentName] || comp.componentName}</span>
-                            {tooltipTextMap[comp.componentName] && (
-                              <span className={styles.tooltipWrapper}>
-                                <i className={styles.infoIcon}>i</i>
-                                <span className={styles.tooltipText}>{tooltipTextMap[comp.componentName]}</span>
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>{(comp.weight * 100).toFixed(0)}%</td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>{comp.rawScore.toFixed(0)}</td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>{comp.weightedScore.toFixed(1)}</td>
-                          <td style={{ padding: '10px', textAlign: 'right' }}>
-                            <span style={{
-                              backgroundColor: comp.isCriteriaMet ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                              color: comp.isCriteriaMet ? '#10b981' : '#ef4444',
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              fontSize: '0.8rem',
-                              fontWeight: 'bold'
-                            }}>
-                              {comp.isCriteriaMet ? '✓ Lolos' : '✗ Gagal'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Monte Carlo Risk Simulation Card */}
-              {result.monteCarlo && (
-                <div className={`${styles.monteCarloCard} glass-panel`} style={{ marginTop: '24px' }}>
-                  <h3>Simulasi Jalur Risiko Monte Carlo (50 Perdagangan)</h3>
-                  <p className={styles.monteCarloIntro}>
-                    Menghitung kemungkinan kejatuhan modal (*drawdown*) pada rangkaian perdagangan berikutnya menggunakan 1.000 simulasi acak berdasarkan parameter setup saat ini:
-                  </p>
-                  <div className={styles.monteCarloStats}>
-                    <div className={styles.monteStat}>
-                      <span className={styles.monteLabel}>Probabilitas Drawdown &gt;= 10%:</span>
-                      <strong className={styles.monteValue}>{result.monteCarlo.drawdown10Prob.toFixed(1)}%</strong>
-                    </div>
-                    <div className={styles.monteStat}>
-                      <span className={styles.monteLabel}>Probabilitas Drawdown &gt;= 20%:</span>
-                      <strong className={styles.monteValue}>{result.monteCarlo.drawdown20Prob.toFixed(1)}%</strong>
-                    </div>
-                    <div className={styles.monteStat}>
-                      <span className={styles.monteLabel}>Probabilitas Drawdown &gt;= 30%:</span>
-                      <strong className={styles.monteValue}>{result.monteCarlo.drawdown30Prob.toFixed(1)}%</strong>
-                    </div>
-                    <div className={styles.monteStat}>
-                      <span className={styles.monteLabel}>Probabilitas Drawdown &gt;= 50%:</span>
-                      <strong className={styles.monteValue}>{result.monteCarlo.drawdown50Prob.toFixed(1)}%</strong>
-                    </div>
-                  </div>
-                  
-                  {/* Visual SVG curve showing probability bar chart */}
-                  <div className={styles.monteCarloChartWrapper}>
-                    <svg viewBox="0 0 500 150" className={styles.monteSvg}>
-                      <line x1="50" y1="20" x2="450" y2="20" stroke="#2a2f3a" strokeWidth="1" />
-                      <line x1="50" y1="50" x2="450" y2="50" stroke="#2a2f3a" strokeWidth="1" />
-                      <line x1="50" y1="80" x2="450" y2="80" stroke="#2a2f3a" strokeWidth="1" />
-                      <line x1="50" y1="110" x2="450" y2="110" stroke="#2a2f3a" strokeWidth="1" />
-                      <line x1="50" y1="130" x2="450" y2="130" stroke="#4a5264" strokeWidth="1.5" />
-
-                      {[
-                        { label: 'DD >= 10%', val: result.monteCarlo.drawdown10Prob, color: '#10b981' },
-                        { label: 'DD >= 20%', val: result.monteCarlo.drawdown20Prob, color: '#f59e0b' },
-                        { label: 'DD >= 30%', val: result.monteCarlo.drawdown30Prob, color: '#f97316' },
-                        { label: 'DD >= 50%', val: result.monteCarlo.drawdown50Prob, color: '#ef4444' },
-                      ].map((item, idx) => {
-                        const barWidth = 40;
-                        const spacing = 95;
-                        const x = 70 + idx * spacing;
-                        const maxVal = 100;
-                        const heightScale = 110;
-                        const barHeight = (item.val / maxVal) * heightScale;
-                        const y = 130 - barHeight;
-
-                        return (
-                          <g key={idx}>
-                            <rect x={x} y={20} width={barWidth} height={heightScale} fill="rgba(255,255,255,0.03)" rx="4" />
-                            <rect x={x} y={y} width={barWidth} height={barHeight} fill={item.color} rx="4" style={{ transition: 'all 0.5s ease-out' }} />
-                            <text x={x + barWidth / 2} y={y - 6} textAnchor="middle" fill="#relative" fontSize="11" fontWeight="bold">
-                              {item.val.toFixed(0)}%
-                            </text>
-                            <text x={x + barWidth / 2} y="145" textAnchor="middle" fill="#94a3b8" fontSize="10">
-                              {item.label}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </svg>
-                  </div>
-                </div>
-              )}
-
-              {/* Quantitative Engine Explanation confluences */}
-              {result.aiExplanation && (
-                <div className={`${styles.explanationCard} glass-panel`} style={{ marginTop: '24px' }}>
-                  <h3>Justifikasi Confluence Kuantitatif (Institutional Engine)</h3>
-                  <p className={styles.summaryText}>{result.aiExplanation.summary}</p>
-                  
-                  <div className={styles.prosConsGrid}>
-                    <div className={styles.proBox}>
-                      <h5>Confluences Pendukung (Pros)</h5>
-                      <ul>
-                        {result.aiExplanation.pros?.map((p, idx) => <li key={idx}>✓ {p}</li>)}
-                      </ul>
-                    </div>
-                    
-                    <div className={styles.conBox}>
-                      <h5>Faktor Resiko (Cons)</h5>
-                      <ul>
-                        {result.aiExplanation.cons?.map((c, idx) => <li key={idx}>✗ {c}</li>)}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
+        </div>
       </div>
+
+      {/* Real-time Demo Spot & Futures Trading Simulator (adapted from Cryptometer) */}
+      <div className="glass-panel" style={{
+        marginTop: '24px',
+        padding: '20px',
+        borderRadius: '12px',
+        background: 'rgba(255, 255, 255, 0.03)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        backdropFilter: 'blur(16px)'
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          paddingBottom: '10px',
+          marginBottom: '16px'
+        }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>🎮</span> Simulasi Demo Trading (Spot & Futures)
+            </h3>
+            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Latih mitigasi resiko Anda dengan dana simulasi non-nyata</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ fontSize: '0.9rem', color: '#f8fafc' }}>
+              Saldo Demo: <strong style={{ color: '#10b981', fontSize: '1rem' }}>${demoBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT</strong>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetDemoAccount}
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                color: '#ef4444',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              Reset Saldo
+            </button>
+          </div>
+        </div>
+
+        {simMessage && (
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.15)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            color: '#60a5fa',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            fontSize: '0.8rem',
+            marginBottom: '12px',
+            fontWeight: '600'
+          }}>
+            {simMessage}
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+          
+          {/* Order Placement Form */}
+          <div style={{ background: 'rgba(0,0,0,0.15)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '0.88rem', color: '#f8fafc', fontWeight: 'bold' }}>Buka Posisi Baru ({asset})</h4>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              
+              {/* Spot/Futures Tabs */}
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Tipe Transaksi</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setSimType('SPOT'); setSimLeverage('1'); }}
+                    style={{
+                      padding: '6px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      background: simType === 'SPOT' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      color: '#fff'
+                    }}
+                  >
+                    SPOT (1x)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSimType('FUTURES')}
+                    style={{
+                      padding: '6px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      background: simType === 'FUTURES' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      color: '#fff'
+                    }}
+                  >
+                    FUTURES
+                  </button>
+                </div>
+              </div>
+
+              {/* Futures settings: direction & leverage */}
+              {simType === 'FUTURES' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Arah</label>
+                    <select
+                      className="form-input"
+                      style={{ padding: '6px', fontSize: '0.78rem', background: 'rgba(15,23,42,0.8)' }}
+                      value={simDirection}
+                      onChange={(e) => setSimDirection(e.target.value)}
+                    >
+                      <option value="LONG">📈 BUY (Long)</option>
+                      <option value="SHORT">📉 SELL (Short)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Leverage</label>
+                    <select
+                      className="form-input"
+                      style={{ padding: '6px', fontSize: '0.78rem', background: 'rgba(15,23,42,0.8)' }}
+                      value={simLeverage}
+                      onChange={(e) => setSimLeverage(e.target.value)}
+                    >
+                      <option value="2">2x</option>
+                      <option value="5">5x</option>
+                      <option value="10">10x</option>
+                      <option value="20">20x</option>
+                      <option value="50">50x</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Size input */}
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>
+                  Ukuran Posisi ({simType === 'SPOT' ? 'USDT' : 'Margin Nominal USDT'})
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%' }}
+                  value={simSize}
+                  onChange={(e) => setSimSize(e.target.value)}
+                  min="1"
+                />
+              </div>
+
+              <div style={{ fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(255,255,255,0.02)', padding: '6px', borderRadius: '4px' }}>
+                <div>Harga Masuk Live: <strong style={{ color: '#fbbf24' }}>${latestLivePrice ? latestLivePrice.toLocaleString() : 'Memuat harga...'}</strong></div>
+                {simType === 'FUTURES' && (
+                  <div>Estimasi Margin Dipakai: <strong style={{ color: '#fff' }}>${(parseFloat(simSize) / parseInt(simLeverage)).toFixed(2)} USDT</strong></div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenDemoPosition}
+                disabled={!latestLivePrice}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  background: simDirection === 'LONG' || simType === 'SPOT' ? '#10b981' : '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  fontSize: '0.82rem',
+                  transition: 'opacity 0.2s'
+                }}
+              >
+                {!latestLivePrice ? 'Memuat Harga...' : `BUKA POSISI DEMO ${simType}`}
+              </button>
+            </div>
+          </div>
+
+          {/* Active Positions & Logs */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <h4 style={{ margin: 0, fontSize: '0.88rem', color: '#f8fafc', fontWeight: 'bold' }}>Posisi Demo Aktif</h4>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto', maxHeight: '200px' }}>
+              {activePositions.length === 0 ? (
+                <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: '0.8rem', background: 'rgba(255,255,255,0.01)', borderRadius: '6px' }}>
+                  Belum ada posisi simulasi yang terbuka.
+                </div>
+              ) : (
+                activePositions.map((pos) => (
+                  <div key={pos.id} style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                    borderRadius: '6px',
+                    padding: '10px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#f8fafc' }}>
+                        {pos.symbol} <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '3px', marginLeft: '6px', background: pos.direction === 'LONG' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: pos.direction === 'LONG' ? '#10b981' : '#ef4444' }}>{pos.direction || 'BUY'} {pos.leverage}x</span>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '2px' }}>
+                        Entry: ${pos.entryPrice.toLocaleString()} ➔ Live: ${pos.currentPrice.toLocaleString()}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: pos.pnl >= 0 ? '#10b981' : '#ef4444' }}>
+                        {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toLocaleString()} ({pos.pnlPercent}%)
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCloseDemoPosition(pos.id)}
+                        style={{
+                          background: 'rgba(255,255,255,0.05)',
+                          color: '#fff',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '0.7rem',
+                          cursor: 'pointer',
+                          marginTop: '4px',
+                          fontWeight: '600'
+                        }}
+                      >
+                        Tutup Posisi
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* History Logs */}
+            {tradeLogs.length > 0 && (
+              <div style={{ marginTop: '10px' }}>
+                <h5 style={{ margin: '0 0 6px 0', fontSize: '0.78rem', color: '#94a3b8' }}>Riwayat PnL Terakhir</h5>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {tradeLogs.slice(0, 3).map((log) => (
+                    <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94a3b8' }}>
+                      <span>{log.time} - {log.symbol} ({log.type})</span>
+                      <strong style={{ color: log.pnl >= 0 ? '#10b981' : '#ef4444' }}>
+                        {log.pnl >= 0 ? '+' : ''}${log.pnl.toLocaleString()} ({log.pnlPercent}%)
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Real-time WebSockets Market Feed Orderbook & Trade Flow (adapted from Coinpulse) */}

@@ -7,9 +7,12 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
   const [asks, setAsks] = useState([]);
   const [trades, setTrades] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
 
   const depthWsRef = useRef(null);
   const tradeWsRef = useRef(null);
+  const pollIntervalRef = useRef(null);
+  const connectionTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (!symbol) return;
@@ -19,10 +22,79 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
     setAsks([]);
     setTrades([]);
     setIsConnected(false);
+    setIsPolling(false);
+
+    if (depthWsRef.current) depthWsRef.current.close();
+    if (tradeWsRef.current) tradeWsRef.current.close();
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
 
     const formattedSymbol = symbol.toLowerCase();
     
-    // 1. Establish Binance WebSocket Depth Stream (Top 5 levels)
+    // 1. Setup automatic fallback timer
+    // If WebSockets fail to connect within 2.5 seconds, automatically fall back to server proxy polling
+    connectionTimeoutRef.current = setTimeout(() => {
+      if (!isConnected) {
+        console.warn("WebSocket connection timed out. Activating server-side polling fallback...");
+        activatePollingFallback();
+      }
+    }, 2500);
+
+    const activatePollingFallback = () => {
+      setIsPolling(true);
+      setIsConnected(true); // Treat as connected/active under proxy
+
+      // Close sockets just in case they are hanging half-open
+      if (depthWsRef.current) depthWsRef.current.close();
+      if (tradeWsRef.current) tradeWsRef.current.close();
+
+      // Immediately fetch once
+      fetchFallbackData();
+
+      // Poll every 3 seconds
+      pollIntervalRef.current = setInterval(fetchFallbackData, 3000);
+    };
+
+    const fetchFallbackData = async () => {
+      try {
+        const symbolUpper = symbol.toUpperCase();
+        
+        // Fetch Depth levels in parallel
+        const [depthRes, tradesRes] = await Promise.all([
+          fetch(`/api/binance/depth?symbol=${symbolUpper}`),
+          fetch(`/api/binance/trades?symbol=${symbolUpper}`)
+        ]);
+
+        if (depthRes.ok) {
+          const depthData = await depthRes.json();
+          if (depthData && depthData.bids && depthData.asks) {
+            const processedBids = depthData.bids.map(([price, quantity]) => ({
+              price: parseFloat(price),
+              quantity: parseFloat(quantity),
+              total: parseFloat(price) * parseFloat(quantity)
+            }));
+            const processedAsks = depthData.asks.map(([price, quantity]) => ({
+              price: parseFloat(price),
+              quantity: parseFloat(quantity),
+              total: parseFloat(price) * parseFloat(quantity)
+            }));
+            setBids(processedBids);
+            setAsks(processedAsks);
+          }
+        }
+
+        if (tradesRes.ok) {
+          const tradesData = await tradesRes.json();
+          if (Array.isArray(tradesData)) {
+            setTrades(tradesData.slice(0, 5));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch fallback proxy data:", err);
+      }
+    };
+
+    // 2. Establish Binance WebSocket Depth Stream (Top 5 levels)
     const depthUrl = `wss://stream.binance.com:9443/ws/${formattedSymbol}@depth5`;
     const tradeUrl = `wss://stream.binance.com:9443/ws/${formattedSymbol}@trade`;
 
@@ -31,27 +103,25 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
       tradeWsRef.current = new WebSocket(tradeUrl);
 
       depthWsRef.current.onopen = () => {
+        if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
         setIsConnected(true);
+        setIsPolling(false);
       };
 
       depthWsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           if (data && data.bids && data.asks) {
-            // Process Bids (Buyers)
             const processedBids = data.bids.map(([price, quantity]) => ({
               price: parseFloat(price),
               quantity: parseFloat(quantity),
               total: parseFloat(price) * parseFloat(quantity)
             }));
-
-            // Process Asks (Sellers)
             const processedAsks = data.asks.map(([price, quantity]) => ({
               price: parseFloat(price),
               quantity: parseFloat(quantity),
               total: parseFloat(price) * parseFloat(quantity)
             }));
-
             setBids(processedBids);
             setAsks(processedAsks);
           }
@@ -61,11 +131,11 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
       };
 
       depthWsRef.current.onerror = (err) => {
-        console.error("Depth WebSocket error:", err);
-        setIsConnected(false);
+        console.warn("Depth WebSocket encountered error, switching to proxy polling...");
+        activatePollingFallback();
       };
 
-      // 2. Establish Binance WebSocket Trade Stream
+      // 3. Establish Binance WebSocket Trade Stream
       tradeWsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -77,7 +147,6 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
               isBuyerMaker: data.m, // true = SELL (red), false = BUY (green)
               time: new Date(data.T || Date.now()).toLocaleTimeString()
             };
-
             setTrades((prev) => [newTrade, ...prev.slice(0, 4)]);
           }
         } catch (err) {
@@ -85,20 +154,21 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
         }
       };
 
+      tradeWsRef.current.onerror = () => {
+        activatePollingFallback();
+      };
+
     } catch (err) {
-      console.error("Failed to connect to WebSockets:", err);
+      console.warn("Failed to initiate WebSockets, activating proxy polling fallback:", err);
+      activatePollingFallback();
     }
 
-    // Cleanup WebSockets on unmount or symbol change
+    // Cleanup on unmount or symbol change
     return () => {
-      if (depthWsRef.current) {
-        depthWsRef.current.close();
-        depthWsRef.current = null;
-      }
-      if (tradeWsRef.current) {
-        tradeWsRef.current.close();
-        tradeWsRef.current = null;
-      }
+      if (depthWsRef.current) depthWsRef.current.close();
+      if (tradeWsRef.current) tradeWsRef.current.close();
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
     };
   }, [symbol]);
 
@@ -151,21 +221,21 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
           alignItems: 'center',
           gap: '6px',
           fontSize: '0.75rem',
-          color: isConnected ? '#10b981' : '#ef4444',
-          background: isConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+          color: isConnected ? (isPolling ? '#3b82f6' : '#10b981') : '#ef4444',
+          background: isConnected ? (isPolling ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)') : 'rgba(239, 68, 68, 0.1)',
           padding: '4px 10px',
           borderRadius: '20px',
-          border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+          border: `1px solid ${isConnected ? (isPolling ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)') : 'rgba(239, 68, 68, 0.2)'}`,
           fontWeight: '600'
         }}>
           <span style={{
             width: '6px',
             height: '6px',
             borderRadius: '50%',
-            backgroundColor: isConnected ? '#10b981' : '#ef4444',
+            backgroundColor: isConnected ? (isPolling ? '#3b82f6' : '#10b981') : '#ef4444',
             display: 'inline-block'
           }}></span>
-          {isConnected ? 'STREAMING REAL-TIME' : 'KONEKSI TERPUTUS'}
+          {isConnected ? (isPolling ? 'PROXY POLLING (ISP SECURED)' : 'STREAMING REAL-TIME') : 'KONEKSI TERPUTUS'}
         </div>
       </div>
 
@@ -176,7 +246,7 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
       }}>
         {/* Bids Table (Buyers) */}
         <div>
-          <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#10b981', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+          <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#10b981', fontWeight: 'bold', display: 'flex', justify: 'space-between' }}>
             <span>BIDS (Antrean Beli)</span>
             <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontWeight: 'normal' }}>Aset: {symbol}</span>
           </h4>
@@ -187,7 +257,7 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
               <div style={{ width: '100px', textAlign: 'right' }}>Total (USDT)</div>
             </div>
             {bids.length === 0 ? (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>Menunggu data...</div>
+              <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>Menghubungkan & Memuat data...</div>
             ) : (
               bids.map((bid, i) => {
                 const percentage = Math.min((bid.total / maxBidTotal) * 100, 100);
@@ -200,7 +270,6 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
                     position: 'relative',
                     alignItems: 'center'
                   }}>
-                    {/* Visual Bar chart background */}
                     <div style={{
                       position: 'absolute',
                       right: 0,
@@ -225,7 +294,7 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
 
         {/* Asks Table (Sellers) */}
         <div>
-          <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#ef4444', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+          <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#ef4444', fontWeight: 'bold', display: 'flex', justify: 'space-between' }}>
             <span>ASKS (Antrean Jual)</span>
             <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontWeight: 'normal' }}>Spread Terketat</span>
           </h4>
@@ -236,7 +305,7 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
               <div style={{ width: '100px', textAlign: 'right' }}>Total (USDT)</div>
             </div>
             {asks.length === 0 ? (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>Menunggu data...</div>
+              <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>Menghubungkan & Memuat data...</div>
             ) : (
               asks.map((ask, i) => {
                 const percentage = Math.min((ask.total / maxAskTotal) * 100, 100);
@@ -249,7 +318,6 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
                     position: 'relative',
                     alignItems: 'center'
                   }}>
-                    {/* Visual Bar chart background */}
                     <div style={{
                       position: 'absolute',
                       right: 0,
@@ -274,7 +342,7 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
 
         {/* Live Trades Stream */}
         <div>
-          <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#3b82f6', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+          <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#3b82f6', fontWeight: 'bold', display: 'flex', justify: 'space-between' }}>
             <span>RECENT TRADES (Aliran Transaksi)</span>
             <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontWeight: 'normal' }}>Bursa Live</span>
           </h4>
@@ -285,16 +353,15 @@ export default function LiveOrderbook({ symbol = 'BTCUSDT' }) {
               <div style={{ width: '80px', textAlign: 'right' }}>Jumlah</div>
             </div>
             {trades.length === 0 ? (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>Menunggu transaksi baru...</div>
+              <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>Menghubungkan & Memuat transaksi...</div>
             ) : (
               trades.map((trade) => (
-                <div key={trade.id} className="fade-in" style={{
+                <div key={trade.id} style={{
                   display: 'flex',
                   fontSize: '0.78rem',
                   color: '#f8fafc',
                   padding: '4px 0',
-                  alignItems: 'center',
-                  animation: 'pulseGlow 1s ease'
+                  alignItems: 'center'
                 }}>
                   <div style={{ flex: 1, color: '#64748b' }}>{trade.time}</div>
                   <div style={{
