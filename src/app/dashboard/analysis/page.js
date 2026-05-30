@@ -177,6 +177,34 @@ export default function AnalysisPage() {
                 </div>
               </div>
             )}
+            <div className={styles.formGroup} style={{ marginBottom: '16px', marginTop: '16px' }}>
+              <label className={styles.label} style={{ color: '#ffb703', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
+                Pilih Leverage * (Wajib)
+              </label>
+              <select 
+                className="form-input" 
+                value={leverage} 
+                onChange={(e) => setLeverage(e.target.value)} 
+                required
+                style={{ 
+                  width: '100%', 
+                  borderColor: !leverage ? '#ffb703' : 'rgba(255,255,255,0.1)', 
+                  background: 'rgba(15, 23, 42, 0.6)', 
+                  border: '1px solid rgba(255, 255, 255, 0.1)', 
+                  padding: '10px', 
+                  borderRadius: '6px', 
+                  color: '#f8fafc' 
+                }}
+              >
+                <option value="">-- Pilih Leverage --</option>
+                <option value="1">1x (Placeholder)</option>
+                <option value="2">2x</option>
+                <option value="5">5x</option>
+                <option value="10">10x</option>
+                <option value="20">20x</option>
+                <option value="50">50x</option>
+              </select>
+            </div>
 
             <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%' }}>
               {loading ? 'Menganalisis Lilin & AI...' : 'Jalankan Analisis Hardened'}
