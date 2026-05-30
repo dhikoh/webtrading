@@ -1,5 +1,7 @@
 import { DataTypes } from 'sequelize';
 import { sequelize } from '../config/db.js';
+export { sequelize };
+
 
 // 1. User Model
 export const User = sequelize.define('User', {

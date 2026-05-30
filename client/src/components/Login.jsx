@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldCheck, UserCheck, KeyRound, AlertTriangle } from 'lucide-react';
+import { API_URL } from '../config.js';
 
 export default function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('archqi');
@@ -16,7 +17,7 @@ export default function Login({ onLoginSuccess }) {
     const endpoint = isRegisterMode ? '/api/auth/register' : '/api/auth/login';
 
     try {
-      const res = await fetch(`http://localhost:5000${endpoint}`, {
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Flame, TrendingUp } from 'lucide-react';
+import { API_URL } from '../config.js';
 
 export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
   const [symbols, setSymbols] = useState([]);
@@ -13,7 +14,7 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
       setLoading(true);
       try {
         const endpoint = activeMarketTab === 'spot' ? '/api/market/spot-info' : '/api/market/futures-info';
-        const res = await fetch(`http://localhost:5000${endpoint}`);
+        const res = await fetch(`${API_URL}${endpoint}`);
         const data = await res.json();
         setSymbols(Array.isArray(data) ? data : []);
       } catch (err) {

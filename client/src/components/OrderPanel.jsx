@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, ShieldAlert } from 'lucide-react';
+import { API_URL } from '../config.js';
 
 export default function OrderPanel({ 
   activeSymbol, 
@@ -84,7 +85,7 @@ export default function OrderPanel({
         reduceOnly: marketType === 'futures' ? reduceOnly : false
       };
 
-      const res = await fetch('http://localhost:5000/api/trade/order', {
+      const res = await fetch(`${API_URL}/api/trade/order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

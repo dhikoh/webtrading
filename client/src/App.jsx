@@ -7,6 +7,7 @@ import OrderPanel from './components/OrderPanel';
 import BottomTabs from './components/BottomTabs';
 import AcademyHelp from './components/AcademyHelp';
 import Login from './components/Login';
+import { API_URL, WS_URL } from './config.js';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('trade_token') || '');
@@ -39,7 +40,7 @@ export default function App() {
 
     const fetchProfile = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/auth/profile', {
+        const res = await fetch(`${API_URL}/api/auth/profile`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
@@ -63,10 +64,11 @@ export default function App() {
     if (!token) return;
 
     const connectAccountStream = () => {
-      const url = `ws://localhost:5000/ws?token=${token}`;
+      const url = `${WS_URL}/ws?token=${token}`;
       console.log(`Establishing secure User Account WS stream: ${url}`);
       
       const ws = new WebSocket(url);
+
       accountWsRef.current = ws;
 
       ws.onopen = () => {
@@ -144,7 +146,7 @@ export default function App() {
   const handleRefreshAccount = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:5000/api/auth/profile', {
+      const res = await fetch(`${API_URL}/api/auth/profile`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();

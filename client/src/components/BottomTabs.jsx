@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, PlusCircle, Trash2, ArrowLeftRight, FileText, Database } from 'lucide-react';
+import { API_URL } from '../config.js';
 
 export default function BottomTabs({ 
   user, 
@@ -36,13 +37,13 @@ export default function BottomTabs({
   const loadAdminData = async () => {
     const token = localStorage.getItem('trade_token');
     try {
-      const resUsers = await fetch('http://localhost:5000/api/admin/users', {
+      const resUsers = await fetch(`${API_URL}/api/admin/users`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const dataUsers = await resUsers.json();
       setAdminUsers(Array.isArray(dataUsers) ? dataUsers : []);
 
-      const resLogs = await fetch('http://localhost:5000/api/admin/logs', {
+      const resLogs = await fetch(`${API_URL}/api/admin/logs`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const dataLogs = await resLogs.json();
@@ -55,7 +56,7 @@ export default function BottomTabs({
   const handleCancelOrder = async (orderId) => {
     const token = localStorage.getItem('trade_token');
     try {
-      const res = await fetch(`http://localhost:5000/api/trade/order/${orderId}`, {
+      const res = await fetch(`${API_URL}/api/trade/order/${orderId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -70,7 +71,7 @@ export default function BottomTabs({
   const handleClosePosition = async (symbol) => {
     const token = localStorage.getItem('trade_token');
     try {
-      const res = await fetch('http://localhost:5000/api/trade/close-position', {
+      const res = await fetch(`${API_URL}/api/trade/close-position`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +95,7 @@ export default function BottomTabs({
 
     const token = localStorage.getItem('trade_token');
     try {
-      const res = await fetch('http://localhost:5000/api/trade/transfer', {
+      const res = await fetch(`${API_URL}/api/trade/transfer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -124,7 +125,7 @@ export default function BottomTabs({
 
     const token = localStorage.getItem('trade_token');
     try {
-      const res = await fetch('http://localhost:5000/api/admin/adjust-balance', {
+      const res = await fetch(`${API_URL}/api/admin/adjust-balance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
