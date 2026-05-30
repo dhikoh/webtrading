@@ -44,8 +44,8 @@ export default function AnalysisPage() {
     try {
       const payload = {
         sourceType: tab === 'API' ? 'LIVE_API' : 'OCR_UPLOAD',
-        asset: tab === 'API' ? asset : undefined,
-        timeframe: tab === 'API' ? timeframe : undefined,
+        asset,
+        timeframe,
         imageBase64: tab === 'UPLOAD' ? fileBase64 : undefined,
         explicitLeverage: leverage ? parseInt(leverage) : undefined
       };
@@ -135,32 +135,30 @@ export default function AnalysisPage() {
         {/* Controls Card */}
         <div className={`${styles.controlsCard} glass-panel`}>
           <form onSubmit={handleScan} className={styles.form}>
-            {tab === 'API' ? (
-              <>
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Pilih Aset Kripto</label>
-                  <select className="form-input" value={asset} onChange={(e) => setAsset(e.target.value)}>
-                    <option value="BTCUSDT">BTC / USDT</option>
-                    <option value="ETHUSDT">ETH / USDT</option>
-                    <option value="SOLUSDT">SOL / USDT</option>
-                    <option value="DOGEUSDT">DOGE / USDT</option>
-                    <option value="PEPEUSDT">PEPE / USDT</option>
-                  </select>
-                </div>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Pilih Aset Kripto</label>
+              <select className="form-input" value={asset} onChange={(e) => setAsset(e.target.value)}>
+                <option value="BTCUSDT">BTC / USDT</option>
+                <option value="ETHUSDT">ETH / USDT</option>
+                <option value="SOLUSDT">SOL / USDT</option>
+                <option value="DOGEUSDT">DOGE / USDT</option>
+                <option value="PEPEUSDT">PEPE / USDT</option>
+              </select>
+            </div>
 
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Timeframe</label>
-                  <select className="form-input" value={timeframe} onChange={(e) => setTimeframe(e.target.value)}>
-                    <option value="5m">5 Menit</option>
-                    <option value="15m">15 Menit</option>
-                    <option value="1h">1 Jam</option>
-                    <option value="4h">4 Jam</option>
-                    <option value="1d">1 Hari</option>
-                  </select>
-                </div>
-              </>
-            ) : (
-              <div className={styles.formGroup}>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Timeframe</label>
+              <select className="form-input" value={timeframe} onChange={(e) => setTimeframe(e.target.value)}>
+                <option value="5m">5 Menit</option>
+                <option value="15m">15 Menit</option>
+                <option value="1h">1 Jam</option>
+                <option value="4h">4 Jam</option>
+                <option value="1d">1 Hari</option>
+              </select>
+            </div>
+
+            {tab === 'UPLOAD' && (
+              <div className={styles.formGroup} style={{ marginTop: '12px' }}>
                 <label className={styles.label}>Unggah Gambar Grafik</label>
                 <div className={styles.uploadBox}>
                   <input 
@@ -177,6 +175,7 @@ export default function AnalysisPage() {
                 </div>
               </div>
             )}
+
             <div className={styles.formGroup} style={{ marginBottom: '16px', marginTop: '16px' }}>
               <label className={styles.label} style={{ color: '#ffb703', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
                 Pilih Leverage * (Wajib)
@@ -207,7 +206,7 @@ export default function AnalysisPage() {
             </div>
 
             <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%' }}>
-              {loading ? 'Menganalisis Lilin & AI...' : 'Jalankan Analisis Hardened'}
+              {loading ? 'Menganalisis Lilin & Indikator Kuantitatif...' : 'Jalankan Analisis Hardened'}
             </button>
           </form>
         </div>
@@ -524,10 +523,10 @@ export default function AnalysisPage() {
                 </div>
               )}
 
-              {/* AI Explanation confluences */}
+              {/* Quantitative Engine Explanation confluences */}
               {result.aiExplanation && (
                 <div className={`${styles.explanationCard} glass-panel`} style={{ marginTop: '24px' }}>
-                  <h3>Penjelasan Confluence AI Gemini</h3>
+                  <h3>Justifikasi Confluence Kuantitatif (Institutional Engine)</h3>
                   <p className={styles.summaryText}>{result.aiExplanation.summary}</p>
                   
                   <div className={styles.prosConsGrid}>
