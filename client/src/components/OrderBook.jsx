@@ -14,11 +14,11 @@ export default function OrderBook({ activeSymbol, marketType, onSelectPrice }) {
     setAsks([]);
     setMidPrice(null);
 
-    // 2. Map symbolic websockets endpoints
+    // 2. Map symbolic websockets endpoints via unblocked mirror servers (.cc)
     const formattedSymbol = activeSymbol.toLowerCase();
     const url = marketType === 'spot'
-      ? `wss://stream.binance.com:9443/ws/${formattedSymbol}@depth20@100ms`
-      : `wss://fstream.binance.com/ws/${formattedSymbol}@depth20@100ms`;
+      ? `wss://stream.binance.cc:9443/ws/${formattedSymbol}@depth20@100ms`
+      : `wss://fstream.binance.cc/ws/${formattedSymbol}@depth20@100ms`;
 
     console.log(`Connecting dynamic OrderBook WS: ${url}`);
     const ws = new WebSocket(url);

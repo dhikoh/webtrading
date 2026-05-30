@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart } from 'lightweight-charts';
 import { Activity, Minimize2, Maximize2 } from 'lucide-react';
+import { API_URL } from '../config.js';
 
 export default function TradingChart({ activeSymbol, marketType, onPriceTick }) {
   const containerRef = useRef(null);
@@ -70,15 +71,11 @@ export default function TradingChart({ activeSymbol, marketType, onPriceTick }) 
     });
     volumeSeriesRef.current = volumeSeries;
 
-    // 4. Fetch historical Klines via Binance REST endpoint directly
+    // 4. Fetch historical Klines via backend proxy to bypass local ISP censorship
     const loadHistory = async () => {
       try {
         const symbolUpper = activeSymbol.toUpperCase();
-        const baseEndpoint = marketType === 'spot' 
-          ? 'https://api.binance.com/api/v3/klines'
-          : 'https://fapi.binance.com/fapi/v1/klines';
-
-        const url = `${baseEndpoint}?symbol=${symbolUpper}&interval=${activeInterval}&limit=300`;
+        const url = `${API_URL}/api/market/klines?symbol=${symbolUpper}&marketType=${marketType}&interval=${activeInterval}&limit=300`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('REST load failed');
 
@@ -113,10 +110,10 @@ export default function TradingChart({ activeSymbol, marketType, onPriceTick }) 
 
     loadHistory();
 
-    // 5. Connect real-time WebSocket dynamic feeds for exact charting parity
+    // 5. Connect real-time WebSocket dynamic feeds via unblocked Binance mirror servers (.cc)
     const wsUrl = marketType === 'spot'
-      ? `wss://stream.binance.com:9443/ws/${activeSymbol.toLowerCase()}@kline_${activeInterval}`
-      : `wss://fstream.binance.com/ws/${activeSymbol.toLowerCase()}@kline_${activeInterval}`;
+      ? `wss://stream.binance.cc:9443/ws/${activeSymbol.toLowerCase()}@kline_${activeInterval}`
+      : `wss://fstream.binance.cc/ws/${activeSymbol.toLowerCase()}@kline_${activeInterval}`;
 
     console.log(`Connecting live charting WS: ${wsUrl}`);
     const ws = new WebSocket(wsUrl);

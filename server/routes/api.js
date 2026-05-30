@@ -20,6 +20,30 @@ router.get('/market/futures-info', async (req, res) => {
   res.json(info);
 });
 
+router.get('/market/klines', async (req, res) => {
+  try {
+    const { symbol, marketType, interval, limit } = req.query;
+    if (!symbol) {
+      return res.status(400).json({ error: 'Symbol is required' });
+    }
+    
+    const baseUrl = marketType === 'futures'
+      ? 'https://fapi.binance.com/fapi/v1/klines'
+      : 'https://api.binance.com/api/v3/klines';
+      
+    const url = `${baseUrl}?symbol=${symbol.toUpperCase()}&interval=${interval || '1m'}&limit=${limit || 300}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch from Binance: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ----------------------------------------------------
 // AUTHENTICATION ROUTES
 // ----------------------------------------------------
