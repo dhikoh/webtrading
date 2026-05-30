@@ -249,7 +249,8 @@ export async function POST(req) {
       sourceType = 'LIVE_API', 
       imageBase64, 
       ocrResult: clientOcrResult,
-      explicitLeverage // Required field: leverage chosen explicitly by user
+      explicitLeverage, // Required field: leverage chosen explicitly by user
+      customParameters // Custom indicator settings from frontend parameters accordion panel
     } = body;
 
     // Validate leverage (no default assumption, 1x is only a placeholder in UI)
@@ -265,6 +266,24 @@ export async function POST(req) {
     // Parse params & weights
     const params = {};
     version.parameters.forEach(p => { params[p.paramKey] = p.paramValue; });
+
+    // Safely merge validated custom parameter overrides to prevent errors
+    if (customParameters && typeof customParameters === 'object') {
+      const allowedKeys = [
+        'emaFastPeriod', 'emaSlowPeriod', 'rsiPeriod',
+        'atrPeriod', 'adxPeriod', 'volumePeriod'
+      ];
+      
+      allowedKeys.forEach(key => {
+        if (customParameters[key] !== undefined && customParameters[key] !== null) {
+          const parsedVal = parseInt(customParameters[key]);
+          // Validate range: period must be an integer between 2 and 200
+          if (!isNaN(parsedVal) && parsedVal >= 2 && parsedVal <= 200) {
+            params[key] = String(parsedVal);
+          }
+        }
+      });
+    }
 
     const weights = {};
     version.weights.forEach(w => { weights[w.featureName] = w.weightValue; });

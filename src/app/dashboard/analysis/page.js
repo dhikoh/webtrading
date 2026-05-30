@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import ChartView from '@/components/ChartView';
+import LiveOrderbook from '@/components/LiveOrderbook';
 import styles from '@/styles/analysis.module.css';
 
 export default function AnalysisPage() {
@@ -23,6 +24,15 @@ export default function AnalysisPage() {
   const [userBalance, setUserBalance] = useState(10000); // customizable balance
   const [leverage, setLeverage] = useState(''); // explicitly unselected by default
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Custom Technical Indicator Parameter states (adapted from Cryptometer)
+  const [emaFastPeriod, setEmaFastPeriod] = useState('20');
+  const [emaSlowPeriod, setEmaSlowPeriod] = useState('50');
+  const [rsiPeriod, setRsiPeriod] = useState('14');
+  const [atrPeriod, setAtrPeriod] = useState('14');
+  const [adxPeriod, setAdxPeriod] = useState('14');
+  const [volumePeriod, setVolumePeriod] = useState('20');
+  const [showIndicatorSettings, setShowIndicatorSettings] = useState(false);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -77,7 +87,15 @@ export default function AnalysisPage() {
         asset,
         timeframe,
         imageBase64: tab === 'UPLOAD' ? fileBase64 : undefined,
-        explicitLeverage: leverage ? parseInt(leverage) : undefined
+        explicitLeverage: leverage ? parseInt(leverage) : undefined,
+        customParameters: {
+          emaFastPeriod: parseInt(emaFastPeriod),
+          emaSlowPeriod: parseInt(emaSlowPeriod),
+          rsiPeriod: parseInt(rsiPeriod),
+          atrPeriod: parseInt(atrPeriod),
+          adxPeriod: parseInt(adxPeriod),
+          volumePeriod: parseInt(volumePeriod)
+        }
       };
 
       const res = await fetch('/api/analysis/scan', {
@@ -313,6 +331,115 @@ export default function AnalysisPage() {
                 )}
               </>
             )}
+
+            {/* Custom Technical settings accordion (adapted from Cryptometer) */}
+            <div className={styles.formGroup} style={{ marginTop: '12px', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '10px', background: 'rgba(255, 255, 255, 0.02)' }}>
+              <button
+                type="button"
+                onClick={() => setShowIndicatorSettings(!showIndicatorSettings)}
+                style={{
+                  width: '100%',
+                  background: 'none',
+                  border: 'none',
+                  color: '#3b82f6',
+                  fontSize: '0.82rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  padding: '2px 0'
+                }}
+              >
+                <span>🎛️ Pengaturan Parameter Indikator (Kustom)</span>
+                <span>{showIndicatorSettings ? '▲' : '▼'}</span>
+              </button>
+              
+              {showIndicatorSettings && (
+                <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '3px' }}>EMA Cepat</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                        min="2"
+                        max="200"
+                        value={emaFastPeriod}
+                        onChange={(e) => setEmaFastPeriod(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '3px' }}>EMA Lambat</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                        min="2"
+                        max="200"
+                        value={emaSlowPeriod}
+                        onChange={(e) => setEmaSlowPeriod(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '3px' }}>RSI Period</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                        min="2"
+                        max="200"
+                        value={rsiPeriod}
+                        onChange={(e) => setRsiPeriod(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '3px' }}>ATR Period</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                        min="2"
+                        max="200"
+                        value={atrPeriod}
+                        onChange={(e) => setAtrPeriod(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '3px' }}>ADX Period</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                        min="2"
+                        max="200"
+                        value={adxPeriod}
+                        onChange={(e) => setAdxPeriod(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: '#9ca3af', display: 'block', marginBottom: '3px' }}>Vol SMA Period</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        style={{ padding: '6px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', width: '100%', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                        min="2"
+                        max="200"
+                        value={volumePeriod}
+                        onChange={(e) => setVolumePeriod(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className={styles.formGroup} style={{ marginBottom: '16px', marginTop: '16px' }}>
               <label className={styles.label} style={{ color: '#ffb703', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
@@ -750,8 +877,11 @@ export default function AnalysisPage() {
               )}
             </div>
           )}
-        </div>
       </div>
+      </div>
+
+      {/* Real-time WebSockets Market Feed Orderbook & Trade Flow (adapted from Coinpulse) */}
+      <LiveOrderbook symbol={asset} />
     </DashboardLayout>
   );
 }
