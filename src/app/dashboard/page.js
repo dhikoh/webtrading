@@ -9,9 +9,14 @@ export default function DashboardOverview() {
   const [livePrices, setLivePrices] = useState({
     BTCUSDT: { price: '0.00', change: '0.00' },
     ETHUSDT: { price: '0.00', change: '0.00' },
-    SOLUSDT: { price: '0.00', change: '0.00' },
     BNBUSDT: { price: '0.00', change: '0.00' },
-    XRPUSDT: { price: '0.00', change: '0.00' }
+    SOLUSDT: { price: '0.00', change: '0.00' },
+    XRPUSDT: { price: '0.00', change: '0.00' },
+    ADAUSDT: { price: '0.00', change: '0.00' },
+    LINKUSDT: { price: '0.00', change: '0.00' },
+    SUIUSDT: { price: '0.00', change: '0.00' },
+    DOGEUSDT: { price: '0.00', change: '0.00' },
+    PEPEUSDT: { price: '0.00', change: '0.00' }
   });
   const [recentSignals, setRecentSignals] = useState([]);
   const [error, setError] = useState('');

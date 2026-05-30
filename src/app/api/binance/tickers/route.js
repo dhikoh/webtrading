@@ -3,7 +3,10 @@ import { fetch24hTickerStats } from '@/utils/binance';
 
 export async function GET() {
   try {
-    const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
+    const symbols = [
+      'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT',
+      'ADAUSDT', 'LINKUSDT', 'SUIUSDT', 'DOGEUSDT', 'PEPEUSDT'
+    ];
     
     // Fetch stats in parallel from the server-side (which is not geoblocked in the cloud)
     const results = await Promise.all(

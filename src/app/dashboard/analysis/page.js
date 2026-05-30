@@ -208,11 +208,16 @@ export default function AnalysisPage() {
             <div className={styles.formGroup}>
               <label className={styles.label}>Pilih Aset Kripto</label>
               <select className="form-input" value={asset} onChange={(e) => setAsset(e.target.value)}>
-                <option value="BTCUSDT">BTC / USDT</option>
-                <option value="ETHUSDT">ETH / USDT</option>
-                <option value="SOLUSDT">SOL / USDT</option>
-                <option value="DOGEUSDT">DOGE / USDT</option>
-                <option value="PEPEUSDT">PEPE / USDT</option>
+                <option value="BTCUSDT">BTC / USDT (Bitcoin)</option>
+                <option value="ETHUSDT">ETH / USDT (Ethereum)</option>
+                <option value="BNBUSDT">BNB / USDT (Binance Coin)</option>
+                <option value="SOLUSDT">SOL / USDT (Solana)</option>
+                <option value="XRPUSDT">XRP / USDT (Ripple)</option>
+                <option value="ADAUSDT">ADA / USDT (Cardano)</option>
+                <option value="LINKUSDT">LINK / USDT (Chainlink)</option>
+                <option value="SUIUSDT">SUI / USDT (Sui Network)</option>
+                <option value="DOGEUSDT">DOGE / USDT (Dogecoin)</option>
+                <option value="PEPEUSDT">PEPE / USDT (Pepe Coin)</option>
               </select>
             </div>
 

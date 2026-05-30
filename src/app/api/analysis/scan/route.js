@@ -310,9 +310,17 @@ export async function POST(req) {
       where: { sourceName: 'BINANCE_API' }
     });
     if (binanceCB && binanceCB.currentState === 'OFFLINE') {
-      const cbReason = "Circuit Breaker OFFLINE. Permintaan ditolak sementara karena kegagalan API Binance berulang.";
-      await logBlockedSignal(prisma, authUser.userId, detectedTicker, ["CIRCUIT_BREAKER_OFFLINE"], cbReason);
-      return NextResponse.json({ error: cbReason }, { status: 503 });
+      const timeSinceUpdate = Date.now() - new Date(binanceCB.updatedAt).getTime();
+      const recoveryCooldownMs = 30000; // 30 seconds probe cooldown
+
+      if (timeSinceUpdate > recoveryCooldownMs) {
+        console.log(`[Circuit Breaker] Cooldown pemulihan berakhir untuk BINANCE_API. Menguji probe HALF-OPEN...`);
+      } else {
+        const remainingSec = Math.ceil((recoveryCooldownMs - timeSinceUpdate) / 1000);
+        const cbReason = `Circuit Breaker OFFLINE (Batas Kegagalan Binance Terlewati). Uji pemulihan otomatis berikutnya tersedia dalam ${remainingSec} detik.`;
+        await logBlockedSignal(prisma, authUser.userId, detectedTicker, ["CIRCUIT_BREAKER_OFFLINE"], cbReason);
+        return NextResponse.json({ error: cbReason }, { status: 503 });
+      }
     }
 
     // Get asset-specific volatility parameters
