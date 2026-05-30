@@ -1,0 +1,357 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-main: #0b0e11;
+  --bg-panel: #161a1e;
+  --bg-input: #24292e;
+  --border-color: #2b3139;
+  --primary-gold: #f0b90b;
+  --primary-gold-hover: #fcd535;
+  --text-active: #eaecef;
+  --text-muted: #848e9c;
+  --green-binance: #0ecb81;
+  --green-binance-light: rgba(14, 203, 129, 0.15);
+  --red-binance: #f6465d;
+  --red-binance-light: rgba(246, 70, 93, 0.15);
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --shadow-premium: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --glass-effect: rgba(22, 26, 30, 0.75);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-active);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Main Grid Layout */
+.app-container {
+  display: grid;
+  grid-template-rows: 50px 1fr;
+  height: 100vh;
+  width: 100vw;
+}
+
+.main-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr 300px;
+  grid-template-rows: 400px 1fr;
+  height: calc(100vh - 50px);
+  gap: 2px;
+  background-color: var(--bg-main);
+}
+
+/* Generic Panel Styling */
+.trading-panel {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Flash Animations for Price Changes */
+@keyframes flash-green {
+  0% { background-color: rgba(14, 203, 129, 0.4); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flash-red {
+  0% { background-color: rgba(246, 70, 93, 0.4); }
+  100% { background-color: transparent; }
+}
+
+.flash-up {
+  animation: flash-green 0.8s ease-out;
+}
+
+.flash-down {
+  animation: flash-red 0.8s ease-out;
+}
+
+/* Sidebar & Asset Tabs Styling */
+.tab-header {
+  display: flex;
+  background-color: var(--bg-main);
+  border-bottom: 1px solid var(--border-color);
+  gap: 1px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 8px 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.tab-btn.active {
+  color: var(--primary-gold);
+  border-bottom: 2px solid var(--primary-gold);
+  background-color: var(--bg-panel);
+}
+
+.tab-btn:hover:not(.active) {
+  color: var(--text-active);
+}
+
+/* Premium Login Overlays */
+.login-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, #1b2028 0%, #06080a 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.login-card {
+  background: var(--glass-effect);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  width: 380px;
+  padding: 32px;
+  box-shadow: var(--shadow-premium);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.login-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary-gold);
+  letter-spacing: 0.5px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.form-input {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 10px 12px;
+  color: var(--text-active);
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.form-input:focus {
+  border-color: var(--primary-gold);
+  box-shadow: 0 0 0 1px rgba(240, 185, 11, 0.2);
+}
+
+.btn-primary {
+  background-color: var(--primary-gold);
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  padding: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  font-size: 13px;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-gold-hover);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Glassmorphism Academy Help Modals */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  width: 600px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-premium);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  line-height: 1.6;
+}
+
+/* Slider Controls */
+.slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.range-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-input);
+  outline: none;
+}
+
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary-gold);
+  cursor: pointer;
+  transition: all 0.1s ease;
+  border: 2px solid var(--bg-panel);
+}
+
+.range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Order Book Depth Visualizers */
+.depth-bar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  z-index: 0;
+  opacity: 0.15;
+  transition: width 0.3s ease;
+}
+
+.depth-bar.ask { background-color: var(--red-binance); }
+.depth-bar.bid { background-color: var(--green-binance); }
+
+.depth-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 4px 8px;
+  font-family: monospace;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.depth-row:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.depth-val {
+  position: relative;
+  z-index: 1;
+  text-align: right;
+}
+
+.depth-price-ask { color: var(--red-binance); text-align: left; }
+.depth-price-bid { color: var(--green-binance); text-align: left; }
+
+/* Custom Badge / Tags */
+.seed-tag {
+  background-color: rgba(240, 185, 11, 0.15);
+  color: var(--primary-gold);
+  border: 1px solid var(--primary-gold);
+  border-radius: 2px;
+  font-size: 9px;
+  padding: 1px 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
