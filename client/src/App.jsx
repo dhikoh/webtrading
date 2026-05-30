@@ -29,6 +29,7 @@ export default function App() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isWsConnected, setIsWsConnected] = useState(false);
   const [lang, setLang] = useState(() => localStorage.getItem('trade_lang') || 'id');
+  const [socket, setSocket] = useState(null);
 
   useEffect(() => {
     localStorage.setItem('trade_lang', lang);
@@ -75,6 +76,7 @@ export default function App() {
       const ws = new WebSocket(url);
 
       accountWsRef.current = ws;
+      setSocket(ws);
 
       ws.onopen = () => {
         setIsWsConnected(true);
@@ -108,6 +110,14 @@ export default function App() {
               setPriceChangePercent(parseFloat(ticker.P).toFixed(2));
             }
           }
+
+          // Extract relayed trades for ultra-low latency real-time price updates
+          else if (data.type === 'BYBIT_RELAY' && data.stream.includes('@trade')) {
+            const trade = data.data;
+            if (trade && trade.p) {
+              setLatestPrice(parseFloat(trade.p));
+            }
+          }
         } catch (error) {
           // Quiet
         }
@@ -115,6 +125,7 @@ export default function App() {
 
       ws.onclose = () => {
         setIsWsConnected(false);
+        setSocket(null);
         // Automatically attempt reconnection in 4 seconds
         setTimeout(() => {
           if (token) connectAccountStream();
@@ -132,6 +143,7 @@ export default function App() {
       if (accountWsRef.current) {
         accountWsRef.current.close();
       }
+      setSocket(null);
     };
   }, [token]);
 
@@ -234,7 +246,7 @@ export default function App() {
         <TradingChart 
           activeSymbol={activeSymbol}
           marketType={marketType}
-          socket={accountWsRef.current}
+          socket={socket}
           onPriceTick={handlePriceTick}
           lang={lang}
         />
@@ -243,7 +255,7 @@ export default function App() {
         <OrderBook 
           activeSymbol={activeSymbol}
           marketType={marketType}
-          socket={accountWsRef.current}
+          socket={socket}
           onSelectPrice={(price) => setLatestPrice(price)}
           lang={lang}
         />

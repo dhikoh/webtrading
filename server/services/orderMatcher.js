@@ -8,6 +8,7 @@ class OrderMatcher {
     this.wsServer = null; // Reference to our client WebSocket server to broadcast updates
     this.latestPrices = { spot: {}, futures: {} }; // symbol -> price
     this.userSubscribedSymbols = new Set(); // set of active symbols watched by browsers
+    this.tickerCache = { spot: {}, futures: {} }; // symbol -> latest merged ticker object
   }
 
   setWsServer(wsServer) {
@@ -249,17 +250,29 @@ class OrderMatcher {
 
         // 4. Handle 24h Ticker statistics - format to Bybit stream ticker format
         else if (topic.startsWith('tickers.')) {
-          const last = parseFloat(tick.lastPrice || tick.last_price);
-          const prev = parseFloat(tick.prevPrice24h || tick.prev_price_24h || tick.lastPrice);
+          const symKey = symbol.toUpperCase();
+          if (payload.type === 'snapshot' || !this.tickerCache[type][symKey]) {
+            this.tickerCache[type][symKey] = { ...tick };
+          } else {
+            // Merge delta fields dynamically
+            this.tickerCache[type][symKey] = {
+              ...this.tickerCache[type][symKey],
+              ...tick
+            };
+          }
+
+          const cachedTick = this.tickerCache[type][symKey];
+          const last = parseFloat(cachedTick.lastPrice || cachedTick.last_price || 0);
+          const prev = parseFloat(cachedTick.prevPrice24h || cachedTick.prev_price_24h || last);
           const changePct = prev ? ((last - prev) / prev) * 100 : 0.00;
 
-          if (this.wsServer) {
+          if (this.wsServer && last > 0) {
             const relayMsg = JSON.stringify({
               type: 'BYBIT_RELAY',
               stream: `${symbol.toLowerCase()}@ticker`,
               marketType: type,
               data: {
-                c: tick.lastPrice || tick.last_price,
+                c: last.toString(),
                 P: changePct.toFixed(2)
               }
             });
