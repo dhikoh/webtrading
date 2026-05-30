@@ -20,6 +20,54 @@ router.get('/market/futures-info', async (req, res) => {
   res.json(info);
 });
 
+router.get('/market/test-connectivity', async (req, res) => {
+  const results = {};
+  
+  // 1. Test Binance
+  try {
+    const t0 = Date.now();
+    const resBinance = await fetch('https://api.binance.com/api/v3/ping');
+    results.binance = {
+      ok: resBinance.ok,
+      status: resBinance.status,
+      statusText: resBinance.statusText,
+      latencyMs: Date.now() - t0
+    };
+  } catch (err) {
+    results.binance = { error: err.message };
+  }
+
+  // 2. Test Bybit
+  try {
+    const t0 = Date.now();
+    const resBybit = await fetch('https://api.bybit.com/v5/market/time');
+    results.bybit = {
+      ok: resBybit.ok,
+      status: resBybit.status,
+      statusText: resBybit.statusText,
+      latencyMs: Date.now() - t0
+    };
+  } catch (err) {
+    results.bybit = { error: err.message };
+  }
+
+  // 3. Test MEXC
+  try {
+    const t0 = Date.now();
+    const resMexc = await fetch('https://api.mexc.com/api/v3/ping');
+    results.mexc = {
+      ok: resMexc.ok,
+      status: resMexc.status,
+      statusText: resMexc.statusText,
+      latencyMs: Date.now() - t0
+    };
+  } catch (err) {
+    results.mexc = { error: err.message };
+  }
+
+  res.json(results);
+});
+
 router.get('/market/klines', async (req, res) => {
   try {
     const { symbol, marketType, interval, limit } = req.query;
