@@ -5,12 +5,12 @@ dotenv.config();
 
 const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/trademachine';
 
-const isProduction = process.env.NODE_ENV === 'production';
+const dbSsl = process.env.DB_SSL === 'true';
 
 export const sequelize = new Sequelize(databaseUrl, {
   dialect: 'postgres',
   logging: false, // Set to console.log for SQL query debugging
-  dialectOptions: isProduction ? {
+  dialectOptions: dbSsl ? {
     ssl: {
       require: true,
       rejectUnauthorized: false
