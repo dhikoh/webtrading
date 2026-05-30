@@ -52,6 +52,10 @@ export async function POST(req) {
         }
       });
 
+      // Check if this is the very first user in the system to bootstrap SUPER_ADMIN role
+      const totalUsers = await tx.user.count();
+      const assignedRole = totalUsers === 0 ? 'SUPER_ADMIN' : 'MEMBER';
+
       // Create User linked to Tenant
       const user = await tx.user.create({
         data: {
@@ -60,7 +64,7 @@ export async function POST(req) {
           email,
           passwordHash,
           tenantId: tenant.id,
-          role: 'MEMBER'
+          role: assignedRole
         }
       });
 
