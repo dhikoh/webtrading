@@ -40,9 +40,12 @@ export function middleware(req) {
       return res;
     }
 
-    // 4. Role-based protection: Super Admin routes
-    if (pathname.startsWith('/admin') && user.role !== 'SUPER_ADMIN') {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
+    // 4. Role-based protection: Admin routes (Allow SUPER_ADMIN and ADMIN)
+    if (pathname.startsWith('/admin')) {
+      const allowedRoles = ['SUPER_ADMIN', 'ADMIN'];
+      if (!allowedRoles.includes(user.role)) {
+        return NextResponse.redirect(new URL('/dashboard/portfolio', req.url));
+      }
     }
 
     return NextResponse.next();

@@ -11,36 +11,58 @@ generator client {
 // AUTHENTICATION, MEMBERSHIP & MULTI-TENANCY
 // ----------------------------------------------------
 model User {
-  id             String         @id @default(uuid())
-  email          String         @unique
-  username       String         @unique
-  name           String
-  passwordHash   String
-  avatarUrl      String?
-  role           String         @default("MEMBER") // SUPER_ADMIN, MEMBER
-  status         String         @default("ACTIVE") // ACTIVE, SUSPENDED
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  tenantId       String
-  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  sessions       Session[]
-  auditLogs      AuditLog[]
-  analyses       Analysis[]
-  notifications  Notification[]
-  portfolioState PortfolioState?
-  tradeJournals  TradeJournal[]
+  id                  String           @id @default(uuid())
+  email               String           @unique
+  username            String           @unique
+  name                String
+  passwordHash        String
+  avatarUrl           String?
+  role                String           @default("MEMBER") // SUPER_ADMIN, ADMIN, ANALYST, MEMBER, VIEWER
+  status              String           @default("ACTIVE") // ACTIVE, SUSPENDED, SOFT_DELETED
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  tenantId            String
+  tenant              Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions            Session[]
+  auditLogs           AuditLog[]
+  analyses            Analysis[]
+  notifications       Notification[]
+  portfolioState      PortfolioState?
+  tradeJournals       TradeJournal[]
+  
+  // Security Hardening Fields
+  passwordExpiresAt   DateTime?
+  failedLoginAttempts Int              @default(0)
+  lockedUntil         DateTime?
+  twoFactorEnabled    Boolean          @default(false)
+  totpSecret          String?
+  totpRecoveryCodes   String?          // Comma-separated recovery codes
+  forcePasswordReset  Boolean          @default(false)
+  lastLogin           DateTime?
+
+  passwordHistories   PasswordHistory[]
+  deviceTrackings     DeviceTracking[]
+  loginHistories      LoginHistory[]
+  achievements        UserAchievement[]
+  watchlists          Watchlist[]
 
   @@index([tenantId])
 }
 
 model Tenant {
-  id             String         @id @default(uuid())
-  name           String
-  createdAt      DateTime       @default(now())
-  users          User[]
-  subscriptions  Subscription[]
-  analyses       Analysis[]
-  portfolioStates PortfolioState[]
+  id                  String             @id @default(uuid())
+  name                String
+  status              String             @default("ACTIVE") // ACTIVE, SUSPENDED
+  riskScore           String             @default("NORMAL") // NORMAL, WARNING, HIGH_RISK
+  createdAt           DateTime           @default(now())
+  users               User[]
+  analyses            Analysis[]
+  portfolioStates     PortfolioState[]
+  subscriptions       TenantSubscription[]
+  legacySubscriptions Subscription[]
+  usageStats          TenantUsageStats?
+  billingInvoices     BillingInvoice[]
+  backups             BackupLog[]
 }
 
 model Subscription {
@@ -414,4 +436,165 @@ model StrategyValidationReport {
   profitFactor                  Float
   isValidated                   Boolean         @default(false)
   createdAt                     DateTime        @default(now())
+}
+
+// ----------------------------------------------------
+// NEW ENTERPRISE SAAS & SECURITY MANAGEMENT MODEL
+// ----------------------------------------------------
+
+model PasswordHistory {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model DeviceTracking {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip        String
+  browser   String
+  device    String
+  country   String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model LoginHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip        String
+  browser   String
+  device    String
+  status    String   // SUCCESS, FAILED, LOCKED
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RolePermission {
+  id        String   @id @default(uuid())
+  role      String   // SUPER_ADMIN, ADMIN, ANALYST, MEMBER, VIEWER
+  resource  String   // USER, STRATEGY, BILLING, SYSTEM
+  action    String   // CREATE, UPDATE, DELETE, SUSPEND, ACTIVATE, DISABLE, VIEW, MODIFY, MAINTENANCE, KILL_SWITCH
+  createdAt DateTime @default(now())
+
+  @@unique([role, resource, action])
+}
+
+// ----------------------------------------------------
+// DYNAMIC SUBSCRIPTION & TENANT TELEMETRY
+// ----------------------------------------------------
+
+model SubscriptionPlan {
+  id                String             @id @default(uuid())
+  name              String             @unique // FREE, STARTER, PRO, ENTERPRISE
+  maxDailyScan      Int
+  maxActiveSignals  Int
+  maxUsers          Int
+  maxStorage        Float              // in MB
+  aiUsageLimit      Int
+  priceMonthly      Float
+  createdAt         DateTime           @default(now())
+  subscriptions     TenantSubscription[]
+}
+
+model TenantSubscription {
+  id             String           @id @default(uuid())
+  tenantId       String
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  planId         String
+  plan           SubscriptionPlan @relation(fields: [planId], references: [id])
+  status         String           @default("ACTIVE") // ACTIVE, EXPIRED, SUSPENDED
+  startDate      DateTime         @default(now())
+  endDate        DateTime
+  manualNotes    String?
+  createdAt      DateTime         @default(now())
+
+  @@index([tenantId])
+  @@index([planId])
+}
+
+model TenantUsageStats {
+  id                String   @id @default(uuid())
+  tenantId          String   @unique
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  scanVolumeCount   Int      @default(0)
+  ocrSpamCount      Int      @default(0)
+  aiUsageCount      Int      @default(0)
+  binanceApiCount   Int      @default(0)
+  storageUsed       Float    @default(0.0) // in MB
+  lastResetDate     DateTime @default(now())
+}
+
+model BillingInvoice {
+  id             String   @id @default(uuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoiceNumber  String   @unique
+  amount         Float
+  planName       String
+  status         String   // ACTIVE, EXPIRED, TRIAL, SUSPENDED
+  paymentMethod  String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+// ----------------------------------------------------
+// DOWNTIME CONFIG & COLD STORAGE ARCHIVE
+// ----------------------------------------------------
+
+model SystemConfig {
+  id                 String   @id @default(uuid())
+  globalKillSwitch   Boolean  @default(false)
+  killSwitchReason   String?
+  maintenanceMode    String   @default("NORMAL") // NORMAL, MAINTENANCE, EMERGENCY
+  updatedAt          DateTime @updatedAt
+}
+
+model BackupLog {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  fileName    String
+  fileSize    Float    // in MB
+  status      String   // SUCCESS, FAILED
+  action      String   // BACKUP, RESTORE
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// ----------------------------------------------------
+// PERSONAL PORTFOLIO ENHANCEMENT & GAMIFICATION
+// ----------------------------------------------------
+
+model Watchlist {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  symbol    String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, symbol])
+}
+
+model UserAchievement {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeName       String   // e.g. "CONSECUTIVE_WINS_5", "RISK_DISCIPLINED"
+  description     String
+  unlockedAt      DateTime @default(now())
+
+  @@unique([userId, badgeName])
 }
