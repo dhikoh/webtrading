@@ -42,8 +42,8 @@ export default function Login({ onLoginSuccess }) {
     <div className="login-overlay">
       <div className="login-card">
         <div className="login-logo">
-          <ShieldCheck size={26} />
-          <span>BINANCE SIMULATOR</span>
+          <ShieldCheck size={26} style={{ color: 'var(--primary-gold)' }} />
+          <span>TRADE MACHINE</span>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

@@ -1,13 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Flame, TrendingUp } from 'lucide-react';
+import { Search, Star, Flame, Award, AlertCircle, ArrowUpDown } from 'lucide-react';
 import { API_URL } from '../config.js';
+
+const COIN_NAMES = {
+  BTC: 'Bitcoin',
+  ETH: 'Ethereum',
+  SOL: 'Solana',
+  USDT: 'Tether',
+  USDC: 'USD Coin',
+  BNB: 'BNB Coin',
+  MEME: 'Memecoin',
+  DOGE: 'Dogecoin',
+  AIGENSYN: 'AIGen Synthetic'
+};
 
 export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
   const [symbols, setSymbols] = useState([]);
   const [search, setSearch] = useState('');
   const [activeMarketTab, setActiveMarketTab] = useState(marketType); // 'spot' | 'futures'
-  const [activeQuoteTab, setActiveQuoteTab] = useState('USDT'); // 'USDT' | 'USDC' | 'BNB' | 'BTC'
+  const [activeQuoteTab, setActiveQuoteTab] = useState('USDT'); // 'Favorites' | 'USDT' | 'USDC' | 'BTC' | 'ETH'
+  const [subFilter, setSubFilter] = useState('All'); // 'All' | 'Main' | 'Seed Tag'
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      const stored = localStorage.getItem('trade_favorites');
+      return stored ? JSON.parse(stored) : ['BTCUSDT', 'ETHUSDT'];
+    } catch (e) {
+      return ['BTCUSDT', 'ETHUSDT'];
+    }
+  });
+  
+  const [sortField, setSortField] = useState('symbol'); // 'symbol' | 'price' | 'change'
+  const [sortAsc, setSortAsc] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  // Sync favorites to localStorage
+  useEffect(() => {
+    localStorage.setItem('trade_favorites', JSON.stringify(favorites));
+  }, [favorites]);
 
   useEffect(() => {
     const loadSymbols = async () => {
@@ -16,7 +45,47 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
         const endpoint = activeMarketTab === 'spot' ? '/api/market/spot-info' : '/api/market/futures-info';
         const res = await fetch(`${API_URL}${endpoint}`);
         const data = await res.json();
-        setSymbols(Array.isArray(data) ? data : []);
+        
+        // Enrich symbol data with mock/calculated metrics for full MEXC experience
+        const enriched = (Array.isArray(data) ? data : []).map(s => {
+          // Provide realistic price estimates based on historical assets
+          let lastPrice = 1.0;
+          let mockVol = '1.24M';
+          let mockChange = 0.12;
+
+          if (s.baseAsset === 'BTC') {
+            lastPrice = 74019.20;
+            mockVol = '316.15M';
+            mockChange = 0.13;
+          } else if (s.baseAsset === 'ETH') {
+            lastPrice = 3845.50;
+            mockVol = '145.80M';
+            mockChange = -1.25;
+          } else if (s.baseAsset === 'SOL') {
+            lastPrice = 182.10;
+            mockVol = '88.34M';
+            mockChange = 2.45;
+          } else if (s.baseAsset === 'MEME' || s.baseAsset === 'DOGE') {
+            lastPrice = 0.1425;
+            mockVol = '12.40M';
+            mockChange = -4.80;
+          } else if (s.baseAsset.includes('AIGEN')) {
+            lastPrice = 2.4850;
+            mockVol = '8.92M';
+            mockChange = 12.85;
+          }
+
+          return {
+            ...s,
+            fullName: COIN_NAMES[s.baseAsset] || `${s.baseAsset} Token`,
+            lastPrice,
+            vol24h: mockVol,
+            change24h: mockChange,
+            isSeed: s.baseAsset.includes('AIGEN') || s.baseAsset === 'MEME'
+          };
+        });
+
+        setSymbols(enriched);
       } catch (err) {
         console.error('Failed to load active symbols:', err);
       } finally {
@@ -27,177 +96,375 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol }) {
     loadSymbols();
   }, [activeMarketTab]);
 
-  // Synchronize top-level tabs changes from outer clicks if needed
+  // Synchronize dynamic updates from top-level state
   useEffect(() => {
     setActiveMarketTab(marketType);
   }, [marketType]);
 
-  // Handle auto-quote adjustments when switching between Spot and Futures
-  useEffect(() => {
-    if (activeMarketTab === 'futures') {
-      setActiveQuoteTab('USDT'); // Futures perp is typically settled in USDT in our system
+  const toggleFavorite = (symbol, e) => {
+    e.stopPropagation();
+    setFavorites(prev => 
+      prev.includes(symbol) ? prev.filter(f => f !== symbol) : [...prev, symbol]
+    );
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortField(field);
+      setSortAsc(false);
     }
-  }, [activeMarketTab]);
+  };
 
+  // 1. Filter Symbols
   const filteredSymbols = symbols.filter(s => {
-    // 1. Filter based on Search query
-    const matchSearch = s.symbol.toUpperCase().includes(search.toUpperCase());
-    
-    // 2. Filter based on active Quote tab
-    const matchQuote = activeMarketTab === 'futures' 
-      ? s.quoteAsset === 'USDT' // USD-Margined perpetuals
-      : s.quoteAsset === activeQuoteTab; // Spot USDT/USDC/BNB/BTC divisions
+    // Quote filter
+    const matchQuote = activeQuoteTab === 'Favorites'
+      ? favorites.includes(s.symbol)
+      : s.quoteAsset === activeQuoteTab;
 
-    return matchSearch && matchQuote;
+    // Sub filter (Main vs. Seed Tag)
+    let matchSub = true;
+    if (subFilter === 'Main') {
+      matchSub = !s.isSeed;
+    } else if (subFilter === 'Seed Tag') {
+      matchSub = s.isSeed;
+    }
+
+    // Search query filter
+    const matchSearch = 
+      s.symbol.toUpperCase().includes(search.toUpperCase()) ||
+      s.baseAsset.toUpperCase().includes(search.toUpperCase()) ||
+      s.fullName.toUpperCase().includes(search.toUpperCase());
+
+    return matchQuote && matchSub && matchSearch;
+  });
+
+  // 2. Sort Symbols
+  const sortedSymbols = [...filteredSymbols].sort((a, b) => {
+    let valA = a[sortField];
+    let valB = b[sortField];
+
+    if (sortField === 'price') {
+      valA = a.lastPrice;
+      valB = b.lastPrice;
+    } else if (sortField === 'change') {
+      valA = a.change24h;
+      valB = b.change24h;
+    }
+
+    if (valA < valB) return sortAsc ? -1 : 1;
+    if (valA > valB) return sortAsc ? 1 : -1;
+    return 0;
   });
 
   return (
-    <aside className="trading-panel" style={{ gridColumn: '1', gridRow: '1 / span 2', userSelect: 'none' }}>
+    <aside className="trading-panel" style={{ 
+      gridColumn: '1', 
+      gridRow: '1 / span 2', 
+      userSelect: 'none',
+      borderRight: '1px solid var(--border-color)',
+      backgroundColor: '#161a1e',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
       
-      {/* Top level: Spot vs. Futures */}
-      <div className="tab-header">
+      {/* Top Selector: Spot vs. Futures */}
+      <div className="tab-header" style={{ height: '40px', backgroundColor: '#0b0e11' }}>
         <button 
           className={`tab-btn ${activeMarketTab === 'spot' ? 'active' : ''}`}
           onClick={() => {
             setActiveMarketTab('spot');
-            onSelectSymbol('BTCUSDT', 'spot'); // default spot symbol
+            onSelectSymbol('BTCUSDT', 'spot');
           }}
+          style={{ fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
         >
-          Spot Markets
+          <Flame size={12} />
+          Spot Market
         </button>
         <button 
           className={`tab-btn ${activeMarketTab === 'futures' ? 'active' : ''}`}
           onClick={() => {
             setActiveMarketTab('futures');
-            onSelectSymbol('BTCUSDT', 'futures'); // default futures symbol
+            onSelectSymbol('BTCUSDT', 'futures');
           }}
+          style={{ fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
         >
-          USDT-M Futures
+          <Award size={12} />
+          Futures Perp
         </button>
       </div>
 
-      {/* Spot Quote Sub-Tabs selector */}
-      {activeMarketTab === 'spot' && (
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.1)' }}>
-          {['USDT', 'USDC', 'BNB', 'BTC'].map(q => (
+      {/* Quote Currency Selection Tabs */}
+      <div style={{ 
+        display: 'flex', 
+        borderBottom: '1px solid var(--border-color)', 
+        backgroundColor: '#1e2329',
+        padding: '2px 0'
+      }}>
+        {['Favorites', 'USDT', 'USDC', 'BTC', 'ETH'].map(q => {
+          const isFav = q === 'Favorites';
+          const isSelected = activeQuoteTab === q;
+
+          return (
             <button
               key={q}
               style={{
                 flex: 1,
-                padding: '6px 0',
+                padding: '8px 0',
                 background: 'transparent',
                 border: 'none',
-                color: activeQuoteTab === q ? 'var(--primary-gold)' : 'var(--text-muted)',
+                color: isSelected ? 'var(--primary-gold)' : 'var(--text-muted)',
                 fontSize: '10.5px',
-                fontWeight: activeQuoteTab === q ? '600' : '400',
+                fontWeight: isSelected ? '700' : '500',
                 cursor: 'pointer',
                 textAlign: 'center',
-                borderBottom: activeQuoteTab === q ? '1px solid var(--primary-gold)' : 'none'
+                borderBottom: isSelected ? '2px solid var(--primary-gold)' : '2px solid transparent',
+                transition: 'all 0.15s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '2px'
               }}
-              onClick={() => setActiveQuoteTab(q)}
+              onClick={() => {
+                setActiveQuoteTab(q);
+                setSearch('');
+              }}
             >
-              {q}
+              {isFav ? <Star size={11} fill={isSelected ? 'var(--primary-gold)' : 'transparent'} /> : q}
             </button>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {/* Compact Search Component */}
-      <div style={{ padding: '8px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', position: 'relative' }}>
+      {/* Sub-Filters: All, Main, Innovation / Seed Tag */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '6px', 
+        padding: '8px 12px 4px 12px',
+        backgroundColor: '#161a1e'
+      }}>
+        {['All', 'Main', 'Seed Tag'].map(filter => {
+          const isSelected = subFilter === filter;
+          return (
+            <button
+              key={filter}
+              onClick={() => setSubFilter(filter)}
+              style={{
+                fontSize: '10px',
+                padding: '3px 8px',
+                borderRadius: '12px',
+                border: 'none',
+                background: isSelected ? 'rgba(240, 185, 11, 0.12)' : 'rgba(255,255,255,0.03)',
+                color: isSelected ? 'var(--primary-gold)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                fontWeight: isSelected ? '600' : '400',
+                transition: 'all 0.15s'
+              }}
+            >
+              {filter}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Interactive Search Bar Input */}
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', position: 'relative' }}>
         <input
           type="text"
-          placeholder="Search coin (e.g. AIGEN)..."
+          placeholder="Enter token or contract address..."
           className="form-input"
-          style={{ width: '100%', height: '28px', paddingLeft: '28px', fontSize: '11px', borderRadius: '4px' }}
+          style={{ 
+            width: '100%', 
+            height: '28px', 
+            paddingLeft: '28px', 
+            fontSize: '11px', 
+            borderRadius: '4px',
+            background: '#1e2329'
+          }}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Search size={12} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
+        <Search size={12} style={{ position: 'absolute', left: '20px', top: '16px', color: 'var(--text-muted)' }} />
+      </div>
+
+      {/* Columns Sorter Headers */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: '1.2fr 0.9fr 0.9fr', 
+        padding: '6px 12px',
+        fontSize: '10px',
+        color: 'var(--text-muted)',
+        borderBottom: '1px solid rgba(255,255,255,0.02)',
+        fontWeight: '600'
+      }}>
+        <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }} onClick={() => handleSort('symbol')}>
+          <span>Pair / Vol</span>
+          <ArrowUpDown size={8} />
+        </div>
+        <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }} onClick={() => handleSort('price')}>
+          <span>Price / USD</span>
+          <ArrowUpDown size={8} />
+        </div>
+        <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }} onClick={() => handleSort('change')}>
+          <span>Change %</span>
+          <ArrowUpDown size={8} />
+        </div>
       </div>
 
       {/* Symbols Table list container */}
       <div style={{ flex: '1', overflowY: 'auto' }}>
         {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '11px' }}>
             Loading market registry...
           </div>
-        ) : filteredSymbols.length === 0 ? (
+        ) : sortedSymbols.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '11px' }}>
             No pairs found.
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontSize: '10px' }}>
-                <th style={{ padding: '8px', fontWeight: 500 }}>Asset Pair</th>
-                <th style={{ padding: '8px', fontWeight: 500, textAlign: 'right' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSymbols.map(s => {
-                const isActive = s.symbol === activeSymbol && activeMarketTab === marketType;
-                
-                return (
-                  <tr 
-                    key={s.symbol}
-                    onClick={() => onSelectSymbol(s.symbol, activeMarketTab)}
-                    style={{ 
-                      borderBottom: '1px solid rgba(255,255,255,0.01)', 
-                      cursor: 'pointer',
-                      backgroundColor: isActive ? 'rgba(240, 185, 11, 0.05)' : 'transparent',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <td style={{ padding: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ 
-                        fontWeight: 600, 
-                        color: isActive ? 'var(--primary-gold)' : 'var(--text-active)',
-                        fontSize: '12px'
-                      }}>
-                        {s.baseAsset}
-                      </span>
-                      <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-                        /{s.quoteAsset}
-                      </span>
-                      {/* Seed warning icons matching screenshot */}
-                      {s.baseAsset.includes('AIGEN') && (
-                        <span style={{ backgroundColor: 'var(--primary-gold)', color: '#000', fontSize: '7.5px', padding: '0px 2px', borderRadius: '1px', fontWeight: 800 }}>
-                          SEED
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {sortedSymbols.map(s => {
+              const isActive = s.symbol === activeSymbol && activeMarketTab === marketType;
+              const hasFav = favorites.includes(s.symbol);
+              const changePct = parseFloat(s.change24h || 0);
+              const changeColor = changePct >= 0 ? 'var(--green-binance)' : 'var(--red-binance)';
+              const isUp = changePct >= 0;
+
+              return (
+                <div 
+                  key={s.symbol}
+                  onClick={() => onSelectSymbol(s.symbol, activeMarketTab)}
+                  style={{ 
+                    display: 'grid',
+                    gridTemplateColumns: '1.2fr 0.9fr 0.9fr',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    backgroundColor: isActive ? 'rgba(240, 185, 11, 0.04)' : 'transparent',
+                    borderBottom: '1px solid rgba(255,255,255,0.01)',
+                    transition: 'all 0.15s ease',
+                    alignItems: 'center'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  {/* Left Col: Star + Symbol Ticker + Vol / Tag */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
+                    <button 
+                      onClick={(e) => toggleFavorite(s.symbol, e)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: hasFav ? 'var(--primary-gold)' : 'var(--text-muted)',
+                        padding: '2px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <Star size={11} fill={hasFav ? 'var(--primary-gold)' : 'transparent'} />
+                    </button>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <span style={{ 
+                          fontWeight: 700, 
+                          color: isActive ? 'var(--primary-gold)' : 'var(--text-active)',
+                          fontSize: '11.5px'
+                        }}>
+                          {s.baseAsset}
                         </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '8px', textAlign: 'right', fontSize: '11px' }}>
-                      <span style={{ 
-                        color: isActive ? 'var(--primary-gold)' : 'var(--text-muted)',
-                        border: '1px solid',
-                        borderColor: isActive ? 'var(--primary-gold)' : 'var(--border-color)',
-                        borderRadius: '3px',
-                        padding: '2px 6px',
-                        fontSize: '10px'
-                      }}>
-                        Trade
+                        <span style={{ color: 'var(--text-muted)', fontSize: '9px' }}>
+                          /{s.quoteAsset}
+                        </span>
+                        {s.isSeed && (
+                          <span style={{ 
+                            backgroundColor: 'rgba(240, 185, 11, 0.15)', 
+                            color: 'var(--primary-gold)', 
+                            fontSize: '7px', 
+                            padding: '0 3px', 
+                            borderRadius: '2px', 
+                            fontWeight: 'bold',
+                            border: '1px solid rgba(240, 185, 11, 0.3)'
+                          }}>
+                            SEED
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '9.5px', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        {s.fullName}
                       </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                  </div>
+
+                  {/* Center Col: Price + USD valuation */}
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ 
+                      fontSize: '11px', 
+                      fontWeight: '600', 
+                      fontFamily: 'monospace',
+                      color: isActive ? 'var(--primary-gold)' : 'var(--text-active)'
+                    }}>
+                      {parseFloat(s.lastPrice).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                    </span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '9.5px', fontFamily: 'monospace' }}>
+                      ${parseFloat(s.lastPrice).toLocaleString('id-ID', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  {/* Right Col: Change Pill % + Volume */}
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                    <span style={{ 
+                      color: changeColor,
+                      fontWeight: 'bold',
+                      fontSize: '10px',
+                      background: isUp ? 'var(--green-binance-light)' : 'var(--red-binance-light)',
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      fontFamily: 'monospace',
+                      minWidth: '52px',
+                      textAlign: 'center'
+                    }}>
+                      {isUp ? '+' : ''}{changePct.toFixed(2)}%
+                    </span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '9px', fontFamily: 'monospace' }}>
+                      {s.vol24h}
+                    </span>
+                  </div>
+
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
-      {/* Sidebar footer showing dynamic indices data */}
-      <div style={{ padding: '8px', borderTop: '1px solid var(--border-color)', backgroundColor: 'var(--bg-main)', fontSize: '10px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Sidebar footer with Registry Stats */}
+      <div style={{ 
+        padding: '10px 12px', 
+        borderTop: '1px solid var(--border-color)', 
+        backgroundColor: '#0b0e11', 
+        fontSize: '10.5px', 
+        color: 'var(--text-muted)', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center' 
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Flame size={10} style={{ color: 'var(--primary-gold)' }} />
+          <Flame size={11} style={{ color: 'var(--primary-gold)' }} />
           <span>Active Registry: {symbols.length} pairs</span>
         </div>
+        {favorites.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Star size={10} fill="var(--primary-gold)" style={{ color: 'var(--primary-gold)' }} />
+            <span>{favorites.length} Favs</span>
+          </div>
+        )}
       </div>
 
     </aside>

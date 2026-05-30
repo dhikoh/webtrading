@@ -206,6 +206,7 @@ export default function App() {
         latestPrice={latestPrice}
         priceChangePercent={priceChangePercent}
         user={user}
+        wallets={wallets}
         onLogout={handleLogout}
         onOpenHelp={() => setIsHelpOpen(true)}
         isWsConnected={isWsConnected}

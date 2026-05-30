@@ -1,5 +1,5 @@
 import React from 'react';
-import { HelpCircle, LogOut, Radio, User, Coins } from 'lucide-react';
+import { HelpCircle, LogOut, Radio, User, Coins, Wallet } from 'lucide-react';
 
 export default function Header({ 
   activeSymbol, 
@@ -7,11 +7,28 @@ export default function Header({
   latestPrice, 
   priceChangePercent,
   user, 
+  wallets = [],
   onLogout, 
   onOpenHelp, 
   isWsConnected 
 }) {
   
+  const totalSpotValue = wallets.filter(w => w.walletType === 'spot').reduce((acc, curr) => {
+    const balance = parseFloat(curr.balance || 0);
+    if (curr.asset === 'USDT' || curr.asset === 'USDC') return acc + balance;
+    if (curr.asset === 'BTC') return acc + (balance * 74000);
+    if (curr.asset === 'ETH') return acc + (balance * 3800);
+    if (curr.asset === 'SOL') return acc + (balance * 180);
+    return acc + balance;
+  }, 0);
+
+  const totalFuturesValue = wallets.filter(w => w.walletType === 'futures').reduce((acc, curr) => {
+    const balance = parseFloat(curr.balance || 0);
+    return acc + balance;
+  }, 0);
+
+  const totalNAV = totalSpotValue + totalFuturesValue;
+
   const baseAsset = activeSymbol.replace('USDT', '').replace('USDC', '').replace('BNB', '').replace('BTC', '');
   const quoteAsset = activeSymbol.replace(baseAsset, '');
 
@@ -123,6 +140,28 @@ export default function Header({
           <HelpCircle size={15} style={{ color: 'var(--primary-gold)' }} />
           <span>Academy Guide</span>
         </button>
+
+        {/* NAV Balance HUD */}
+        {wallets && wallets.length > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid var(--border-color)',
+            padding: '6px 14px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            color: 'var(--text-muted)'
+          }} title="Total Net Asset Value (Spot + Futures perpetual collateral)">
+            <Wallet size={12} style={{ color: 'var(--primary-gold)' }} />
+            <span>NAV: <strong style={{ color: 'var(--primary-gold)', fontFamily: 'monospace' }}>{totalNAV.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</strong></span>
+            <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
+            <span>Spot: <strong style={{ color: 'var(--text-active)', fontFamily: 'monospace' }}>{totalSpotValue.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</strong></span>
+            <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
+            <span>Futures: <strong style={{ color: 'var(--text-active)', fontFamily: 'monospace' }}>{totalFuturesValue.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</strong></span>
+          </div>
+        )}
 
         {/* User Role Badge Card */}
         <div style={{ 
