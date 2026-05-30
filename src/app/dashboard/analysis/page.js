@@ -12,6 +12,7 @@ export default function AnalysisPage() {
   
   const [fileBase64, setFileBase64] = useState('');
   const [fileName, setFileName] = useState('');
+  const [filePreview, setFilePreview] = useState('');
   
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -21,6 +22,7 @@ export default function AnalysisPage() {
   const [riskPct, setRiskPct] = useState(1); // default 1% risk
   const [userBalance, setUserBalance] = useState(10000); // customizable balance
   const [leverage, setLeverage] = useState(''); // explicitly unselected by default
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -29,6 +31,7 @@ export default function AnalysisPage() {
     setFileName(file.name);
     const reader = new FileReader();
     reader.onloadend = () => {
+      setFilePreview(reader.result); // Stores full data URL for preview display
       const base64String = reader.result.split(',')[1];
       setFileBase64(base64String);
     };
@@ -113,19 +116,59 @@ export default function AnalysisPage() {
     'SESSION_QUALITY': '10. Kualitas Volatilitas Sesi'
   };
 
+  const tooltipTextMap = {
+    'EMA_ALIGNMENT': 'Kelarasan arah trend antara Exponential Moving Average cepat (20) dan lambat (50) untuk melacak kemiringan momentum aktif.',
+    'RSI_EXHAUSTION': 'Indikator momentum kekuatan jenuh Relative Strength Index (RSI) guna menyaring kondisi terlalu jenuh beli atau jenuh jual.',
+    'CANDLESTICK_CONFLUENCE': 'Sinyal konfirmasi bentuk pola lilin (Pinbar, Engulfing, dsb.) yang memperkuat potensi pembalikan arah harga.',
+    'VOLUME_CONFIRMATION': 'Volume Relatif (RVOL) melacak apakah penembusan harga saat ini didukung likuiditas volume di atas rata-rata 20 periode.',
+    'MARKET_STRUCTURE': 'Deteksi validitas pematahan tren utama (BOS/CHOCH). Pematahan struktur yang lemah atau palsu otomatis digugurkan.',
+    'LIQUIDITY_CONFLUENCE': 'Zona kluster pesanan likuiditas (Buy-side & Sell-side sweeps) guna mendeteksi area pembalikan arah harga yang efisien.',
+    'SR_DISTANCE': 'Perhitungan jarak harga masuk terhadap garis Support/Resistance terdekat untuk mencegah posisi buruk di dekat batas pertahanan.',
+    'ADX_REGIME': 'Kekuatan tren harga berdasarkan skala ADX (ADX > 25 = Trend Kuat; ADX < 20 = Sideways/Ranging).',
+    'FUTURES_INTEL': 'Crowding risk dan data Funding Rate pasar berjangka Binance untuk melacak arah taruhan pelaku pasar ritel vs bandar.',
+    'SESSION_QUALITY': 'Kualitas volatilitas berdasarkan sesi trading UTC aktif (Sesi London/New York memiliki likuiditas premium).'
+  };
+
   return (
     <DashboardLayout title="Analisis Chart & Validasi">
+      {/* 3-Step Progress Indicator */}
+      <div className={styles.stepIndicator}>
+        <div className={`${styles.stepItem} ${styles.stepActive}`}>
+          <div className={styles.stepNum}>1</div>
+          <span>Pilih Aset / Unggah Grafik</span>
+        </div>
+        <div className={styles.stepLine}></div>
+        <div className={`${styles.stepItem} ${leverage ? styles.stepActive : ''}`}>
+          <div className={styles.stepNum}>2</div>
+          <span>Tentukan Leverage</span>
+        </div>
+        <div className={styles.stepLine}></div>
+        <div className={`${styles.stepItem} ${result ? styles.stepActive : ''}`}>
+          <div className={styles.stepNum}>3</div>
+          <span>Kalkulasi Analisis</span>
+        </div>
+      </div>
+
       {/* Tabs */}
       <div className={styles.tabContainer}>
         <button 
           className={`${styles.tabBtn} ${tab === 'API' ? styles.activeTab : ''}`}
-          onClick={() => { setTab('API'); setError(''); }}
+          onClick={() => { 
+            setTab('API'); 
+            setError(''); 
+            setFilePreview('');
+            setFileBase64('');
+            setFileName('');
+          }}
         >
           🔍 Penarikan API Real-Time
         </button>
         <button 
           className={`${styles.tabBtn} ${tab === 'UPLOAD' ? styles.activeTab : ''}`}
-          onClick={() => { setTab('UPLOAD'); setError(''); }}
+          onClick={() => { 
+            setTab('UPLOAD'); 
+            setError(''); 
+          }}
         >
           📸 Visual OCR Chart AI
         </button>
@@ -158,22 +201,85 @@ export default function AnalysisPage() {
             </div>
 
             {tab === 'UPLOAD' && (
-              <div className={styles.formGroup} style={{ marginTop: '12px' }}>
-                <label className={styles.label}>Unggah Gambar Grafik</label>
-                <div className={styles.uploadBox}>
-                  <input 
-                    type="file" 
-                    id="chartFile" 
-                    accept="image/*" 
-                    onChange={handleFileChange} 
-                    className={styles.fileInput} 
-                    required
-                  />
-                  <label htmlFor="chartFile" className={styles.uploadLabel}>
-                    <span>📁</span> {fileName || 'Pilih atau drop gambar di sini'}
-                  </label>
+              <>
+                <div className={styles.formGroup} style={{ marginTop: '12px' }}>
+                  <label className={styles.label}>Unggah Gambar Grafik</label>
+                  <div className={styles.uploadBox}>
+                    <input 
+                      type="file" 
+                      id="chartFile" 
+                      accept="image/*" 
+                      onChange={handleFileChange} 
+                      className={styles.fileInput} 
+                      required={!fileBase64}
+                    />
+                    <label htmlFor="chartFile" className={styles.uploadLabel}>
+                      <span>📁</span> {fileName || 'Pilih atau drop gambar di sini'}
+                    </label>
+                  </div>
                 </div>
-              </div>
+
+                {filePreview && (
+                  <div className={styles.formGroup} style={{ marginTop: '12px', textAlign: 'center' }}>
+                    <label className={styles.label} style={{ display: 'block', textAlign: 'left', marginBottom: '6px' }}>
+                      Pratinjau Grafik yang Dipilih:
+                    </label>
+                    <div style={{
+                      position: 'relative',
+                      width: '100%',
+                      height: '160px',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      background: 'rgba(10, 15, 30, 0.5)',
+                      backdropFilter: 'blur(8px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <img 
+                        src={filePreview} 
+                        alt="Chart Preview" 
+                        style={{ 
+                          maxWidth: '100%', 
+                          maxHeight: '100%', 
+                          objectFit: 'contain'
+                        }} 
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setFilePreview('');
+                          setFileBase64('');
+                          setFileName('');
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          background: 'rgba(239, 68, 68, 0.85)',
+                          border: 'none',
+                          color: 'white',
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          transition: 'background 0.2s',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
+                        }}
+                        title="Hapus gambar"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             <div className={styles.formGroup} style={{ marginBottom: '16px', marginTop: '16px' }}>
@@ -231,6 +337,38 @@ export default function AnalysisPage() {
 
           {result && !loading && (
             <div className={styles.resultsWrapper}>
+              {/* Visual Journal Image Reference Preview */}
+              {tab === 'UPLOAD' && filePreview && (
+                <div className={`${styles.chartCard} glass-panel`} style={{ marginBottom: '20px', padding: '16px' }}>
+                  <div className={styles.chartHeader} style={{ marginBottom: '10px' }}>
+                    <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                      <span>📸</span> Dokumen Visual Jurnal (Screenshot Anda)
+                    </h4>
+                  </div>
+                  <div style={{
+                    width: '100%',
+                    maxHeight: '260px',
+                    borderRadius: '6px',
+                    overflow: 'hidden',
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <img 
+                      src={filePreview} 
+                      alt="Uploaded Chart Reference" 
+                      style={{ 
+                        maxWidth: '100%', 
+                        maxHeight: '260px', 
+                        objectFit: 'contain' 
+                      }} 
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* SVG interactive chart */}
               <div className={`${styles.chartCard} glass-panel`}>
                 <div className={styles.chartHeader}>
@@ -277,15 +415,26 @@ export default function AnalysisPage() {
                     </div>
                   </div>
 
-                  <div className={styles.statsRow} style={{ marginTop: '16px' }}>
-                    <span>Confidence Terkalibrasi:</span>
-                    <strong>{result.analysis.confidence}% 
-                      {result.calibration && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '6px' }}>
-                          (Raw: {result.calibration.rawConfidence}%)
-                        </span>
-                      )}
-                    </strong>
+                  <div className={styles.gaugeContainer} style={{ marginTop: '16px', marginBottom: '16px' }}>
+                    <div className={styles.gaugeHeader}>
+                      <span>Keyakinan Sinyal (Calibrated Confidence)</span>
+                      <span style={{ color: 'var(--accent-primary)', fontWeight: 'bold' }}>{result.analysis.confidence}%</span>
+                    </div>
+                    <div className={styles.gaugeBar}>
+                      <div 
+                        className={styles.gaugeFill} 
+                        style={{ 
+                          width: `${result.analysis.confidence}%`,
+                          color: result.analysis.signal?.includes('LONG') ? '#10b981' : result.analysis.signal?.includes('SHORT') ? '#ef4444' : '#8b5cf6',
+                          backgroundColor: 'currentColor'
+                        }} 
+                      />
+                    </div>
+                    {result.calibration && (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
+                        * Terkalibrasi secara dinamis terhadap performa trading nyata (Nilai mentah: {result.calibration.rawConfidence}%)
+                      </span>
+                    )}
                   </div>
 
                   <div className={styles.statsRow}>
@@ -340,30 +489,7 @@ export default function AnalysisPage() {
                     </div>
                   ) : (
                     <div className={styles.sizingForm}>
-                      <div className={styles.formGroup} style={{ marginBottom: '12px' }}>
-                        <label className={styles.label}>Saldo Akun Aktif ($)</label>
-                        <input 
-                          type="number" 
-                          className="form-input" 
-                          value={userBalance} 
-                          onChange={(e) => setUserBalance(Math.max(1, parseFloat(e.target.value) || 0))} 
-                          style={{ width: '100%' }}
-                        />
-                      </div>
-
-                      <div className={styles.formGroup} style={{ marginBottom: '12px' }}>
-                        <label className={styles.label}>Resiko Per Perdagangan: {riskPct}%</label>
-                        <input 
-                          type="range" 
-                          min="0.5" 
-                          max="5" 
-                          step="0.5" 
-                          value={riskPct} 
-                          onChange={(e) => setRiskPct(parseFloat(e.target.value))}
-                          className={styles.rangeSlider}
-                        />
-                      </div>
-
+                      {/* Primary Leverage Selection */}
                       <div className={styles.formGroup} style={{ marginBottom: '12px' }}>
                         <label className={styles.label} style={{ color: '#ffb703', fontWeight: 'bold' }}>
                           Pilih Leverage * (Wajib Dipilih)
@@ -382,6 +508,44 @@ export default function AnalysisPage() {
                           <option value="20">20x</option>
                           <option value="50">50x</option>
                         </select>
+                      </div>
+
+                      {/* Advanced Settings Accordion Toggle */}
+                      <button 
+                        type="button" 
+                        className={styles.advancedToggle} 
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        style={{ marginBottom: '8px' }}
+                      >
+                        <span>🎛️ Atur Saldo & Toleransi Resiko Lanjutan</span>
+                        <span>{showAdvanced ? '▲ Lipat' : '▼ Tampilkan'}</span>
+                      </button>
+
+                      {/* Advanced Parameters */}
+                      <div className={`${styles.advancedContent} ${showAdvanced ? styles.advancedContentActive : ''}`}>
+                        <div className={styles.formGroup} style={{ width: '100%' }}>
+                          <label className={styles.label}>Saldo Akun Aktif ($)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            value={userBalance} 
+                            onChange={(e) => setUserBalance(Math.max(1, parseFloat(e.target.value) || 0))} 
+                            style={{ width: '100%', background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.1)', padding: '10px', borderRadius: '6px', color: '#f8fafc' }}
+                          />
+                        </div>
+
+                        <div className={styles.formGroup} style={{ width: '100%' }}>
+                          <label className={styles.label}>Resiko Per Perdagangan: {riskPct}%</label>
+                          <input 
+                            type="range" 
+                            min="0.5" 
+                            max="5" 
+                            step="0.5" 
+                            value={riskPct} 
+                            onChange={(e) => setRiskPct(parseFloat(e.target.value))}
+                            className={styles.rangeSlider}
+                          />
+                        </div>
                       </div>
                       
                       {positionSizing && (
@@ -431,8 +595,14 @@ export default function AnalysisPage() {
                     <tbody>
                       {result.analysis.scoreComponents?.map((comp, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '10px', fontWeight: 'bold' }}>
-                            {componentNamesMap[comp.componentName] || comp.componentName}
+                          <td style={{ padding: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                            <span>{componentNamesMap[comp.componentName] || comp.componentName}</span>
+                            {tooltipTextMap[comp.componentName] && (
+                              <span className={styles.tooltipWrapper}>
+                                <i className={styles.infoIcon}>i</i>
+                                <span className={styles.tooltipText}>{tooltipTextMap[comp.componentName]}</span>
+                              </span>
+                            )}
                           </td>
                           <td style={{ padding: '10px', textAlign: 'center' }}>{(comp.weight * 100).toFixed(0)}%</td>
                           <td style={{ padding: '10px', textAlign: 'center' }}>{comp.rawScore.toFixed(0)}</td>

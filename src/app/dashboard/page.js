@@ -131,6 +131,10 @@ export default function DashboardOverview() {
           <div className={styles.cardHeader}>
             <span className={styles.cardIcon}>🏆</span>
             <span className={styles.cardTitle}>Rasio Menang (Win Rate)</span>
+            <span className={styles.tooltipWrapper}>
+              <i className={styles.infoIcon}>i</i>
+              <span className={styles.tooltipText}>Persentase perdagangan yang ditutup untung (Win) dibanding kalah (Loss) dalam sejarah jurnal Anda.</span>
+            </span>
           </div>
           <div className={styles.cardVal} style={{ color: 'var(--color-success)' }}>
             {data?.stats?.winRate ?? 0}%
@@ -144,6 +148,10 @@ export default function DashboardOverview() {
           <div className={styles.cardHeader}>
             <span className={styles.cardIcon}>💰</span>
             <span className={styles.cardTitle}>Ekuitas Modal</span>
+            <span className={styles.tooltipWrapper}>
+              <i className={styles.infoIcon}>i</i>
+              <span className={styles.tooltipText}>Saldo kapital aktif saat ini dan persentase batas alokasi resiko portofolio berjalan.</span>
+            </span>
           </div>
           <div className={styles.cardVal}>${data?.portfolio?.capital?.toFixed(2) ?? '10,000.00'}</div>
           <div className={styles.marginUsage}>
