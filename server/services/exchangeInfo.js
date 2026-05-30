@@ -11,7 +11,7 @@ export const fetchSpotExchangeInfo = async () => {
   }
 
   try {
-    const res = await fetch('https://api.bybit.com/v5/market/instruments-info?category=spot');
+    const res = await fetch('https://api.bytick.com/v5/market/instruments-info?category=spot');
     if (!res.ok) throw new Error('Failed to fetch Bybit Spot exchange info');
     const data = await res.json();
 
@@ -55,7 +55,7 @@ export const fetchFuturesExchangeInfo = async () => {
   }
 
   try {
-    const res = await fetch('https://api.bybit.com/v5/market/instruments-info?category=linear');
+    const res = await fetch('https://api.bytick.com/v5/market/instruments-info?category=linear');
     if (!res.ok) throw new Error('Failed to fetch Bybit Futures exchange info');
     const data = await res.json();
 

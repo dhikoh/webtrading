@@ -26,7 +26,7 @@ router.get('/market/test-connectivity', async (req, res) => {
   // Test Bybit Official V5 Time API
   try {
     const t0 = Date.now();
-    const resBybit = await fetch('https://api.bybit.com/v5/market/time');
+    const resBybit = await fetch('https://api.bytick.com/v5/market/time');
     results.bybit = {
       ok: resBybit.ok,
       status: resBybit.status,
@@ -58,7 +58,7 @@ router.get('/market/klines', async (req, res) => {
     const bybitInterval = intervalMap[interval] || '1';
     const category = marketType === 'futures' ? 'linear' : 'spot';
     
-    const url = `https://api.bybit.com/v5/market/kline?category=${category}&symbol=${symbol.toUpperCase()}&interval=${bybitInterval}&limit=${limit || 300}`;
+    const url = `https://api.bytick.com/v5/market/kline?category=${category}&symbol=${symbol.toUpperCase()}&interval=${bybitInterval}&limit=${limit || 300}`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch from Bybit: ${response.statusText}`);

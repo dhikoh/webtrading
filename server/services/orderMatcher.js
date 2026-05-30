@@ -156,8 +156,8 @@ class OrderMatcher {
     
     // Connect to Bybit's public websocket (which is 100% unblocked globally by cloud IPs)
     const url = type === 'spot'
-      ? `wss://stream.bybit.com/v5/public/spot`
-      : `wss://stream.bybit.com/v5/public/linear`;
+      ? `wss://stream.bytick.com/v5/public/spot`
+      : `wss://stream.bytick.com/v5/public/linear`;
 
     console.log(`Connecting matching engine WS via Bybit (${type}): ${url} for ${symbol.toUpperCase()}`);
     const ws = new WebSocket(url);
