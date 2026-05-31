@@ -15,7 +15,8 @@ export default function OrderPanel({
   const [orderType, setOrderType] = useState('LIMIT'); // 'LIMIT' | 'MARKET' | 'STOP_LIMIT' | 'STOP_MARKET' | 'TRAILING_STOP'
   
   const [price, setPrice] = useState('');
-  const [quantity, setQuantity] = useState('');
+  const [orderUnit, setOrderUnit] = useState('base'); // 'base' (coin) | 'quote' (USDT/USDC/etc)
+  const [inputValue, setInputValue] = useState('');
   const [stopPrice, setStopPrice] = useState('');
   const [callbackRate, setCallbackRate] = useState('1.0'); // Trailing stop callback percentage
   
@@ -49,6 +50,7 @@ export default function OrderPanel({
       adjustLev: 'Sesuaikan Leverage:',
       priceLabel: 'Harga',
       qtyLabel: 'Kuantitas',
+      valueLabel: 'Nilai',
       stopTrigger: 'Pemicu Harga Stop',
       triggerPlaceholder: 'Harga Pemicu',
       callbackLabel: 'Rasio Callback Trailing (%)',
@@ -67,6 +69,7 @@ export default function OrderPanel({
       adjustLev: 'Adjust Leverage:',
       priceLabel: 'Price',
       qtyLabel: 'Quantity',
+      valueLabel: 'Value',
       stopTrigger: 'Stop Price Trigger',
       triggerPlaceholder: 'Trigger Price',
       callbackLabel: 'Trailing Callback Rate (%)',
@@ -113,9 +116,21 @@ export default function OrderPanel({
   const costUnit = isFutures ? 'USDT' : quoteAsset;
 
   const parsedPrice = parseFloat(price) || 0;
-  const parsedQty = parseFloat(quantity) || 0;
   const orderPrice = orderType === 'MARKET' ? (latestPrice || 0) : parsedPrice;
-  const totalCost = orderPrice * parsedQty;
+  const numericInput = parseFloat(inputValue) || 0;
+
+  let finalQuantity = 0;
+  let finalQuoteValue = 0;
+
+  if (orderUnit === 'base') {
+    finalQuantity = numericInput;
+    finalQuoteValue = orderPrice * finalQuantity;
+  } else {
+    finalQuoteValue = numericInput;
+    finalQuantity = orderPrice > 0 ? (finalQuoteValue / orderPrice) : 0;
+  }
+
+  const totalCost = orderPrice * finalQuantity;
   const marginCost = isFutures ? (totalCost / leverage) : totalCost;
 
   // Synchronize price field if user clicks order book price or live ticks
@@ -171,12 +186,16 @@ export default function OrderPanel({
     }
 
     try {
+      if (finalQuantity <= 0) {
+        throw new Error(lang === 'id' ? 'Kuantitas/Nilai order harus lebih besar dari 0' : 'Order Quantity/Value must be greater than 0');
+      }
+
       const payload = {
         symbol: activeSymbol,
         marketType,
         side,
         type: orderType,
-        quantity: parseFloat(quantity),
+        quantity: finalQuantity,
         price: orderType === 'MARKET' ? null : parseFloat(price),
         stopPrice: (orderType === 'STOP_LIMIT' || orderType === 'STOP_MARKET') ? parseFloat(stopPrice) : null,
         callbackRate: orderType === 'TRAILING_STOP' ? parseFloat(callbackRate) : null,
@@ -200,7 +219,7 @@ export default function OrderPanel({
       }
 
       setSuccessMsg(data.message);
-      setQuantity('');
+      setInputValue('');
       setStopPrice('');
       
       if (onSubmitSuccess) {
@@ -217,22 +236,38 @@ export default function OrderPanel({
     const balance = getAvailableBalance();
     if (balance <= 0) return;
 
-    if (marketType === 'spot') {
-      if (side === 'BUY') {
-        const orderPrice = orderType === 'MARKET' ? (latestPrice || 0) : parseFloat(price || 0);
-        if (orderPrice <= 0) return;
-        const totalUsdtToSpend = balance * pct;
-        setQuantity((totalUsdtToSpend / orderPrice).toFixed(4));
+    const orderPrice = orderType === 'MARKET' ? (latestPrice || 0) : parseFloat(price || 0);
+    if (orderPrice <= 0) return;
+
+    if (orderUnit === 'base') {
+      if (marketType === 'spot') {
+        if (side === 'BUY') {
+          const totalUsdtToSpend = balance * pct;
+          setInputValue((totalUsdtToSpend / orderPrice).toFixed(4));
+        } else {
+          setInputValue((balance * pct).toFixed(4));
+        }
       } else {
-        setQuantity((balance * pct).toFixed(4));
+        // Futures buying power based on leverage
+        const marginAllocation = balance * pct;
+        const positionValueToOpen = marginAllocation * leverage;
+        setInputValue((positionValueToOpen / orderPrice).toFixed(4));
       }
     } else {
-      // Futures buying power based on leverage
-      const orderPrice = orderType === 'MARKET' ? (latestPrice || 0) : parseFloat(price || 0);
-      if (orderPrice <= 0) return;
-      const marginAllocation = balance * pct;
-      const positionValueToOpen = marginAllocation * leverage;
-      setQuantity((positionValueToOpen / orderPrice).toFixed(4));
+      if (marketType === 'spot') {
+        if (side === 'BUY') {
+          const totalUsdtToSpend = balance * pct;
+          setInputValue(totalUsdtToSpend.toFixed(2));
+        } else {
+          const totalUsdtToReceive = balance * pct * orderPrice;
+          setInputValue(totalUsdtToReceive.toFixed(2));
+        }
+      } else {
+        // Futures position value
+        const marginAllocation = balance * pct;
+        const positionValueToOpen = marginAllocation * leverage;
+        setInputValue(positionValueToOpen.toFixed(2));
+      }
     }
   };
 
@@ -388,16 +423,53 @@ export default function OrderPanel({
         )}
 
         <div className="form-group">
-          <label>{t.qtyLabel} ({baseAsset})</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <label style={{ margin: 0 }}>
+              {orderUnit === 'base' ? `${t.qtyLabel} (${baseAsset})` : `${t.valueLabel} (${quoteAsset})`}
+            </label>
+            <button
+              type="button"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--primary-gold)',
+                fontSize: '10.5px',
+                cursor: 'pointer',
+                padding: '2px 0',
+                textDecoration: 'underline',
+                fontWeight: 600
+              }}
+              onClick={() => {
+                const val = parseFloat(inputValue) || 0;
+                if (val > 0 && orderPrice > 0) {
+                  if (orderUnit === 'base') {
+                    setInputValue((val * orderPrice).toFixed(4));
+                  } else {
+                    setInputValue((val / orderPrice).toFixed(4));
+                  }
+                }
+                setOrderUnit(prev => prev === 'base' ? 'quote' : 'base');
+              }}
+            >
+              {orderUnit === 'base' ? `⇒ ${quoteAsset}` : `⇒ ${baseAsset}`}
+            </button>
+          </div>
           <input
             type="number"
             step="any"
             className="form-input"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
             placeholder="0.00"
             required
           />
+          {parseFloat(inputValue) > 0 && orderPrice > 0 && (
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', textAlign: 'right' }}>
+              ≈ {orderUnit === 'base' 
+                  ? `${finalQuoteValue.toFixed(4)} ${quoteAsset}` 
+                  : `${finalQuantity.toFixed(4)} ${baseAsset}`}
+            </div>
+          )}
         </div>
 
         {/* Conditional Stop Trigger field */}
@@ -502,7 +574,7 @@ export default function OrderPanel({
         )}
 
         {/* Estimated Cost indicator card */}
-        {(quantity && orderPrice > 0) ? (
+        {(finalQuantity && orderPrice > 0) ? (
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
