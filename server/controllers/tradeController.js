@@ -1,5 +1,6 @@
 import { sequelize, Order, Position, Wallet, TradeHistory, TransactionLedger } from '../models/index.js';
 import { matcher } from '../services/orderMatcher.js';
+import { latestTickers } from '../services/exchangeInfo.js';
 
 // Place a new Spot or Futures Order
 export const placeOrder = async (req, res) => {
@@ -36,7 +37,7 @@ export const placeOrder = async (req, res) => {
     // ----------------------------------------------------
     if (marketType === 'spot') {
       if (side === 'BUY') {
-        const orderCost = type === 'MARKET' ? (numericQty * (matcher.latestPrices.spot[symbol] || 0)) : (numericQty * numericPrice);
+        const orderCost = type === 'MARKET' ? (numericQty * (matcher.latestPrices.spot[symbol] || (latestTickers.spot[symbol])?.lastPrice || 0)) : (numericQty * numericPrice);
         if (orderCost <= 0 && type === 'MARKET') {
           await t.rollback();
           return res.status(400).json({ error: 'Market price for asset not loaded yet. Please wait a moment.' });
@@ -136,14 +137,34 @@ export const placeOrder = async (req, res) => {
       } else {
         // Non-reduceOnly order: requires initial margin collateral lock
         const leverage = activePosition ? activePosition.leverage : (reqLeverage ? Math.min(Math.max(parseInt(reqLeverage), 1), 125) : 20);
-        const currentPrice = matcher.latestPrices.futures[symbol] || numericPrice || 0;
+        // Fallback: Check WebSocket price first, then REST API tickers cache, then request body price
+        const currentPrice = matcher.latestPrices.futures[symbol] || (latestTickers.futures[symbol])?.lastPrice || numericPrice || 0;
         
         if (currentPrice <= 0) {
           await t.rollback();
           return res.status(400).json({ error: 'Market price not loaded. Cannot evaluate initial margin.' });
         }
 
-        const initialMarginCost = (numericQty * currentPrice) / leverage;
+        // Netting-aware margin cost calculation
+        let initialMarginCost = 0;
+        if (activePosition) {
+          // If order is opposite to position side, it is reducing/netting
+          const isOppositeDirection = (activePosition.side === 'LONG' && side === 'SELL') || (activePosition.side === 'SHORT' && side === 'BUY');
+          
+          if (isOppositeDirection) {
+            if (numericQty > activePosition.size) {
+              const overshootQty = numericQty - activePosition.size;
+              initialMarginCost = (overshootQty * currentPrice) / leverage;
+            } else {
+              initialMarginCost = 0; // Completely reduces or partially reduces position, no new margin lock required!
+            }
+          } else {
+            // Same direction adds to position size, requires full margin
+            initialMarginCost = (numericQty * currentPrice) / leverage;
+          }
+        } else {
+          initialMarginCost = (numericQty * currentPrice) / leverage;
+        }
 
         // Calculate available balance: MB - locked Initial Margins - active pending order costs
         const openPositions = await Position.findAll({ where: { userId }, transaction: t });
@@ -156,7 +177,7 @@ export const placeOrder = async (req, res) => {
         });
 
         const pendingCost = pendingFuturesOrders.reduce((acc, o) => {
-          const oPrice = o.price || matcher.latestPrices.futures[o.symbol] || 0;
+          const oPrice = o.price || matcher.latestPrices.futures[o.symbol] || (latestTickers.futures[o.symbol])?.lastPrice || 0;
           return acc + ((o.quantity * oPrice) / leverage);
         }, 0);
 
@@ -190,7 +211,7 @@ export const placeOrder = async (req, res) => {
 
     // If Market order, process execution instantly inside database
     if (type === 'MARKET') {
-      const currentPrice = matcher.latestPrices[marketType][symbol];
+      const currentPrice = matcher.latestPrices[marketType][symbol] || (latestTickers[marketType][symbol])?.lastPrice;
       if (!currentPrice) {
         await t.rollback();
         return res.status(400).json({ error: 'Exchange price for asset currently unavailable. Try placing a limit order.' });
@@ -392,7 +413,7 @@ export const transferFunds = async (req, res) => {
       });
 
       const pendingCost = pendingOrders.reduce((acc, o) => {
-        const price = o.price || matcher.latestPrices.futures[o.symbol] || 0;
+        const price = o.price || matcher.latestPrices.futures[o.symbol] || (latestTickers.futures[o.symbol])?.lastPrice || 0;
         return acc + ((o.quantity * price) / 20); // Default leverage 20
       }, 0);
 
@@ -511,7 +532,7 @@ export const closePosition = async (req, res) => {
       return res.status(404).json({ error: 'Active position not found on this symbol.' });
     }
 
-    const currentPrice = matcher.latestPrices.futures[symbol.toUpperCase()] || matcher.latestPrices.spot[symbol.toUpperCase()];
+    const currentPrice = matcher.latestPrices.futures[symbol.toUpperCase()] || matcher.latestPrices.spot[symbol.toUpperCase()] || (latestTickers.futures[symbol.toUpperCase()] || latestTickers.spot[symbol.toUpperCase()])?.lastPrice;
     if (!currentPrice) {
       await t.rollback();
       return res.status(400).json({ error: 'Current market price not loaded. Cannot close position.' });

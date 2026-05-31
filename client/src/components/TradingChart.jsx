@@ -237,7 +237,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
         if (isCancelled) return;
 
         if (klines.length > 0) {
-          const samplePrice = klines[0][4]; // Close price string
+          const samplePrice = String(klines[0][4] || ''); // Close price string
           const dotIdx = samplePrice.indexOf('.');
           if (dotIdx !== -1) {
             chartPrecision = Math.min(20, Math.max(2, samplePrice.length - dotIdx - 1));

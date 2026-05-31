@@ -48,7 +48,7 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
 
           // Dynamically detect decimal precision from the raw string prices
           if (rawAsks.length > 0 && rawAsks[0][0]) {
-            const rawPrice = rawAsks[0][0];
+            const rawPrice = String(rawAsks[0][0] || '');
             const dotIdx = rawPrice.indexOf('.');
             if (dotIdx !== -1) {
               setPrecision(rawPrice.length - dotIdx - 1);
@@ -56,7 +56,7 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
               setPrecision(0);
             }
           } else if (rawBids.length > 0 && rawBids[0][0]) {
-            const rawPrice = rawBids[0][0];
+            const rawPrice = String(rawBids[0][0] || '');
             const dotIdx = rawPrice.indexOf('.');
             if (dotIdx !== -1) {
               setPrecision(rawPrice.length - dotIdx - 1);

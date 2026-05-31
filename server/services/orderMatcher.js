@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { sequelize, Order, Position, Wallet, TradeHistory, TransactionLedger, User } from '../models/index.js';
 import { Op } from 'sequelize';
+import { latestTickers } from './exchangeInfo.js';
 
 class OrderMatcher {
   constructor() {
@@ -341,15 +342,10 @@ class OrderMatcher {
         
         // 2. Process Stop-Limit & Stop-Market triggers
         else if (order.type === 'STOP_LIMIT' || order.type === 'STOP_MARKET') {
-          // If buy stop (typically breakout, stop price is above current market)
-          // If sell stop (typically stop loss, stop price is below current market)
-          // For safety we detect price crossing stop price from either direction
-          const prevPrice = this.latestPrices[type][symbol] || price;
-          const stopPrice = order.stopPrice;
-
-          if (prevPrice < stopPrice && price >= stopPrice) {
+          const stopPrice = parseFloat(order.stopPrice);
+          if (order.side === 'BUY' && price >= stopPrice) {
             isTriggered = true;
-          } else if (prevPrice > stopPrice && price <= stopPrice) {
+          } else if (order.side === 'SELL' && price <= stopPrice) {
             isTriggered = true;
           }
         }
@@ -430,8 +426,11 @@ class OrderMatcher {
     if (order.side === 'BUY') {
       // User placed Buy order: USDT was already escrowed.
       // Now, we add the base asset (e.g. BTC) to the wallet
-      const baseAsset = order.symbol.replace('USDT', '').replace('USDC', '').replace('BNB', '').replace('BTC', '');
-      const quoteAsset = order.symbol.replace(baseAsset, '');
+      let quoteAsset = 'USDT';
+      if (order.symbol.endsWith('USDC')) quoteAsset = 'USDC';
+      else if (order.symbol.endsWith('BNB')) quoteAsset = 'BNB';
+      else if (order.symbol.endsWith('BTC') && order.symbol !== 'BTCUSDT') quoteAsset = 'BTC';
+      const baseAsset = order.symbol.replace(quoteAsset, '');
 
       let baseWallet = await Wallet.findOne({
         where: { userId: order.userId, walletType: 'spot', asset: baseAsset },
@@ -511,8 +510,11 @@ class OrderMatcher {
     } else {
       // User placed Sell order: Base asset (e.g. BTC) was already escrowed.
       // Now, we credit quote asset USDT to their wallet
-      const baseAsset = order.symbol.replace('USDT', '').replace('USDC', '').replace('BNB', '').replace('BTC', '');
-      const quoteAsset = order.symbol.replace(baseAsset, '');
+      let quoteAsset = 'USDT';
+      if (order.symbol.endsWith('USDC')) quoteAsset = 'USDC';
+      else if (order.symbol.endsWith('BNB')) quoteAsset = 'BNB';
+      else if (order.symbol.endsWith('BTC') && order.symbol !== 'BTCUSDT') quoteAsset = 'BTC';
+      const baseAsset = order.symbol.replace(quoteAsset, '');
 
       let quoteWallet = await Wallet.findOne({
         where: { userId: order.userId, walletType: 'spot', asset: quoteAsset },
@@ -867,7 +869,7 @@ class OrderMatcher {
 
       for (const pos of activePositions) {
         const symbol = pos.symbol.toUpperCase();
-        const markPrice = this.latestPrices.futures[symbol] || this.latestPrices.spot[symbol];
+        const markPrice = this.latestPrices.futures[symbol] || this.latestPrices.spot[symbol] || (latestTickers.futures[symbol] || latestTickers.spot[symbol])?.lastPrice;
 
         if (!markPrice) continue;
 
