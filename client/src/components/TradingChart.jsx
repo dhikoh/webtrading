@@ -99,6 +99,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
     if (!containerRef.current || activeTab !== 'chart') return;
 
     let isCancelled = false;
+    let chartPrecision = 2;
 
     // 1. Initialize Lightweight Chart Engine
     const chart = createChart(containerRef.current, {
@@ -213,10 +214,10 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
 
       setLegend({
         time: isLatest ? t.nowLabel : timeStr,
-        open: candle.open.toFixed(2),
-        high: candle.high.toFixed(2),
-        low: candle.low.toFixed(2),
-        close: candle.close.toFixed(2),
+        open: candle.open.toFixed(chartPrecision),
+        high: candle.high.toFixed(chartPrecision),
+        low: candle.low.toFixed(chartPrecision),
+        close: candle.close.toFixed(chartPrecision),
         change: `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`,
         range: `${range.toFixed(2)}%`,
         isUp: candle.close >= candle.open
@@ -234,6 +235,26 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
 
         const klines = await res.json();
         if (isCancelled) return;
+
+        if (klines.length > 0) {
+          const samplePrice = klines[0][4]; // Close price string
+          const dotIdx = samplePrice.indexOf('.');
+          if (dotIdx !== -1) {
+            chartPrecision = Math.min(20, Math.max(2, samplePrice.length - dotIdx - 1));
+          }
+        }
+
+        const formatOptions = {
+          priceFormat: {
+            type: 'price',
+            precision: chartPrecision,
+            minMove: 1 / Math.pow(10, chartPrecision),
+          }
+        };
+        candleSeries.applyOptions(formatOptions);
+        ma7Series.applyOptions(formatOptions);
+        ma25Series.applyOptions(formatOptions);
+        ma99Series.applyOptions(formatOptions);
         
         const candleData = [];
         const volumeData = [];
