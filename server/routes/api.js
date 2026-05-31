@@ -4,6 +4,7 @@ import { placeOrder, cancelOrder, transferFunds, getOpenOrders, getPositions, ge
 import { getAllUsersData, adjustUserBalance, getAdminLogs } from '../controllers/adminController.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import { fetchSpotExchangeInfo, fetchFuturesExchangeInfo } from '../services/exchangeInfo.js';
+import { analyzeGuardianDSS } from '../services/guardianDSS.js';
 
 const router = express.Router();
 
@@ -83,6 +84,53 @@ router.get('/market/klines', async (req, res) => {
     ]).reverse(); // Bybit returns reverse order, we need chronological
 
     res.json(formattedKlines);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/market/guardian-analysis', async (req, res) => {
+  try {
+    const { symbol, marketType, interval } = req.query;
+    if (!symbol) {
+      return res.status(400).json({ error: 'Symbol is required' });
+    }
+
+    const intervalMap = {
+      '1m': '1',
+      '5m': '5',
+      '15m': '15',
+      '1h': '60',
+      '1d': 'D'
+    };
+    const bybitInterval = intervalMap[interval] || '1';
+    const category = marketType === 'futures' ? 'linear' : 'spot';
+
+    // Fetch 1000 candles for rich historical analysis
+    const url = `https://api.bytick.com/v5/market/kline?category=${category}&symbol=${symbol.toUpperCase()}&interval=${bybitInterval}&limit=1000`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch from Bybit: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data.retCode !== 0 || !data.result || !data.result.list) {
+      throw new Error(`Bybit error: ${data.retMsg}`);
+    }
+
+    const formattedKlines = data.result.list.map(k => [
+      parseInt(k[0]), // start time in ms
+      parseFloat(k[1]), // open
+      parseFloat(k[2]), // high
+      parseFloat(k[3]), // low
+      parseFloat(k[4]), // close
+      parseFloat(k[5]), // volume
+      parseFloat(k[6]), // turnover
+      parseInt(k[0]) + (parseInt(bybitInterval) * 60000 || 60000) // close time
+    ]).reverse();
+
+    const analysis = analyzeGuardianDSS(symbol, formattedKlines);
+    res.json(analysis);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

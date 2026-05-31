@@ -318,6 +318,8 @@ export default function App() {
           floatingPnLs={floatingPnLs}
           lang={lang}
           priceCache={priceCache}
+          activeSymbol={activeSymbol}
+          marketType={marketType}
         />
 
       </main>

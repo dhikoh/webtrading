@@ -10,14 +10,21 @@ export default function BottomTabs({
   onRefresh, 
   floatingPnLs,
   lang = 'id',
-  priceCache = {}
+  priceCache = {},
+  activeSymbol = 'BTCUSDT',
+  marketType = 'spot'
 }) {
-  const [activeTab, setActiveTab] = useState('positions'); // 'positions' | 'orders' | 'balances' | 'admin'
+  const [activeTab, setActiveTab] = useState('positions'); // 'positions' | 'orders' | 'balances' | 'admin' | 'guardian'
   const [transferDir, setTransferDir] = useState('SPOT_TO_FUTURES');
   const [transferAmt, setTransferAmt] = useState('');
   const [transferErr, setTransferErr] = useState('');
   const [transferOk, setTransferOk] = useState('');
   const [transferLoading, setTransferLoading] = useState(false);
+
+  // AI Guardian states
+  const [guardianData, setGuardianData] = useState(null);
+  const [guardianLoading, setGuardianLoading] = useState(false);
+  const [guardianTimeframe, setGuardianTimeframe] = useState('1d');
 
   // Admin states
   const [adminUsers, setAdminUsers] = useState([]);
@@ -37,6 +44,18 @@ export default function BottomTabs({
   // Translations
   const t = {
     id: {
+      guardianTab: 'AI Guardian DSS',
+      timeframeLabel: 'Kerangka Waktu',
+      trendTitle: 'Tren',
+      momentumTitle: 'Momentum',
+      volumeTitle: 'Volume',
+      volatilityTitle: 'Volatilitas',
+      winrateTitle: 'Winrate Historis',
+      confidenceLabel: 'Tingkat Keyakinan',
+      safetyEngine: 'Safety Engine',
+      riskRewardRatio: 'Rasio Risk Reward',
+      analyzing: 'Menganalisis data pasar...',
+      noData: 'Data analisis tidak tersedia.',
       positions: 'Posisi',
       openOrders: 'Order Terbuka',
       walletsTab: 'Dompet & Transfer',
@@ -111,6 +130,18 @@ export default function BottomTabs({
       thTradeType: 'Tipe Pasar'
     },
     en: {
+      guardianTab: 'AI Guardian DSS',
+      timeframeLabel: 'Timeframe',
+      trendTitle: 'Trend',
+      momentumTitle: 'Momentum',
+      volumeTitle: 'Volume',
+      volatilityTitle: 'Volatility',
+      winrateTitle: 'Historical Winrate',
+      confidenceLabel: 'Confidence Level',
+      safetyEngine: 'Safety Engine',
+      riskRewardRatio: 'Risk Reward Ratio',
+      analyzing: 'Analyzing market data...',
+      noData: 'Analysis data unavailable.',
       positions: 'Positions',
       openOrders: 'Open Orders',
       walletsTab: 'Wallets & Inner Transfer',
@@ -185,6 +216,34 @@ export default function BottomTabs({
       thTradeType: 'Market Type'
     }
   }[lang];
+
+  const loadGuardianAnalysis = async () => {
+    if (!activeSymbol) return;
+    setGuardianLoading(true);
+    const token = localStorage.getItem('trade_token');
+    try {
+      const res = await fetch(`${API_URL}/api/market/guardian-analysis?symbol=${activeSymbol}&marketType=${marketType}&interval=${guardianTimeframe}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGuardianData(data);
+      } else {
+        setGuardianData(null);
+      }
+    } catch (err) {
+      console.error('Failed to load guardian analysis:', err);
+      setGuardianData(null);
+    } finally {
+      setGuardianLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'guardian') {
+      loadGuardianAnalysis();
+    }
+  }, [activeTab, activeSymbol, marketType, guardianTimeframe]);
 
   useEffect(() => {
     if (activeTab === 'admin' && user?.role === 'admin') {
@@ -364,6 +423,15 @@ export default function BottomTabs({
         >
           <FileText size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'text-bottom' }} />
           {t.historyTab}
+        </button>
+
+        <button 
+          className={`tab-btn ${activeTab === 'guardian' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('guardian')}
+          style={{ color: 'var(--primary-gold)', borderBottomColor: activeTab === 'guardian' ? 'var(--primary-gold)' : 'transparent' }}
+        >
+          <ShieldCheck size={12} style={{ color: 'var(--primary-gold)', display: 'inline', marginRight: '4px', verticalAlign: 'text-bottom' }} />
+          {t.guardianTab}
         </button>
         
         {user?.role === 'admin' && (
@@ -916,6 +984,194 @@ export default function BottomTabs({
             </div>
           );
         })()}
+
+      {activeTab === 'guardian' && (
+        <div style={{ flex: 1, padding: '16px', overflowY: 'auto' }}>
+          {/* Header & Timeframe Selector */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldCheck color="var(--primary-gold)" size={18} />
+              <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--text-active)' }}>
+                AI Trading Guardian & DSS - {activeSymbol} ({marketType.toUpperCase()})
+              </span>
+            </div>
+            
+            {/* Timeframe Buttons */}
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {['1m', '5m', '15m', '1h', '1d'].map((tf) => (
+                <button
+                  key={tf}
+                  onClick={() => setGuardianTimeframe(tf)}
+                  style={{
+                    backgroundColor: guardianTimeframe === tf ? 'var(--primary-gold)' : 'var(--bg-input)',
+                    color: guardianTimeframe === tf ? '#000' : 'var(--text-muted)',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {guardianLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '180px', color: 'var(--text-muted)' }}>
+              <div className="spinner" style={{ width: '24px', height: '24px', border: '2px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary-gold)', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '12px' }}></div>
+              <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+              <span>{t.analyzing}</span>
+            </div>
+          ) : !guardianData ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '180px', color: 'var(--text-muted)' }}>
+              {t.noData}
+            </div>
+          ) : (() => {
+            // Determine status badge colors
+            const badgeStyles = {
+              'STRONG BUY': { bg: 'rgba(14,203,129,0.15)', text: '#0ecb81', border: '1px solid rgba(14,203,129,0.3)', glow: '0 0 10px rgba(14,203,129,0.2)' },
+              'BUY': { bg: 'rgba(14,203,129,0.1)', text: '#0ecb81', border: '1px solid rgba(14,203,129,0.2)', glow: 'none' },
+              'WAIT': { bg: 'rgba(255,177,26,0.1)', text: '#ffb11a', border: '1px solid rgba(255,177,26,0.2)', glow: 'none' },
+              'SELL': { bg: 'rgba(246,70,93,0.1)', text: '#f6465d', border: '1px solid rgba(246,70,93,0.2)', glow: 'none' },
+              'STRONG SELL': { bg: 'rgba(246,70,93,0.15)', text: '#f6465d', border: '1px solid rgba(246,70,93,0.3)', glow: '0 0 10px rgba(246,70,93,0.2)' },
+              'AVOID': { bg: 'rgba(132,142,156,0.1)', text: '#848e9c', border: '1px solid rgba(132,142,156,0.2)', glow: 'none' }
+            }[guardianData.status] || { bg: 'rgba(255,255,255,0.05)', text: '#fff', border: '1px solid rgba(255,255,255,0.1)', glow: 'none' };
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* Upper Cards Grid */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+                  
+                  {/* Status Badge Card */}
+                  <div style={{ flex: '1 1 250px', backgroundColor: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Guardian Status</div>
+                    <div style={{
+                      backgroundColor: badgeStyles.bg,
+                      color: badgeStyles.text,
+                      border: badgeStyles.border,
+                      boxShadow: badgeStyles.glow,
+                      borderRadius: '4px',
+                      padding: '8px 24px',
+                      fontSize: '18px',
+                      fontWeight: '800',
+                      letterSpacing: '0.05em',
+                      textAlign: 'center',
+                      marginBottom: '10px'
+                    }}>
+                      {guardianData.status}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      Regime: <strong style={{ color: 'var(--text-active)' }}>{guardianData.marketRegime}</strong>
+                    </div>
+                  </div>
+
+                  {/* Confidence circular progress or gauge */}
+                  <div style={{ flex: '1 1 220px', backgroundColor: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', padding: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    {/* SVG Progress Circle */}
+                    <div style={{ position: 'relative', width: '70px', height: '70px' }}>
+                      <svg width="70" height="70" viewBox="0 0 36 36">
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="rgba(255,255,255,0.05)"
+                          strokeWidth="3"
+                        />
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="var(--primary-gold)"
+                          strokeDasharray={`${guardianData.confidence}, 100`}
+                          strokeWidth="3.5"
+                          strokeLinecap="round"
+                          style={{ transition: 'stroke-dasharray 0.5s ease' }}
+                        />
+                      </svg>
+                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '15px', fontWeight: '800', color: 'var(--primary-gold)' }}>
+                        {guardianData.confidence}%
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.confidenceLabel}</div>
+                      <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '2px', color: 'var(--text-active)' }}>
+                        {guardianData.tradeQualityScore >= 70 ? 'High Probability' : guardianData.tradeQualityScore >= 50 ? 'Moderate/Cautious' : 'Low Probability'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Score: {guardianData.tradeQualityScore}/100</div>
+                    </div>
+                  </div>
+
+                  {/* Backtest & Winrate metrics */}
+                  <div style={{ flex: '1 1 250px', backgroundColor: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.winrateTitle}</div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: parseFloat(guardianData.historicalWinrate) >= 55 ? 'var(--green-bybit)' : 'var(--text-active)', margin: '4px 0' }}>
+                      {guardianData.historicalWinrate}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Based on <strong style={{ color: 'var(--text-active)' }}>{guardianData.backtestStats.total}</strong> setups detected in past 1000 candles
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* DSS Strategy Parameters Cards Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                  {[
+                    { label: 'Entry Zone', val: guardianData.entryZone, color: 'var(--primary-gold)' },
+                    { label: 'Stop Loss', val: guardianData.stopLoss, color: 'var(--red-bybit)' },
+                    { label: 'Take Profit', val: guardianData.takeProfit, color: 'var(--green-bybit)' },
+                    { label: 'Risk Reward', val: guardianData.riskReward, color: 'var(--text-active)' }
+                  ].map((p, idx) => (
+                    <div key={idx} style={{ backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '6px', padding: '10px' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px' }}>{p.label}</div>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: p.color }}>{p.val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Reasons and Risks checklist splits */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  
+                  {/* Left Column: Reasons */}
+                  <div style={{ backgroundColor: 'rgba(14,203,129,0.02)', border: '1px solid rgba(14,203,129,0.05)', borderRadius: '8px', padding: '14px' }}>
+                    <h5 style={{ color: 'var(--green-bybit)', fontSize: '12px', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '14px' }}>✓</span> Checklist Analisis & Pendukung
+                    </h5>
+                    <ul style={{ paddingLeft: '16px', margin: 0, fontSize: '11.5px', color: 'var(--text-active)', lineHeight: '1.7' }}>
+                      {guardianData.reasons.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Right Column: Risks */}
+                  <div style={{ backgroundColor: 'rgba(246,70,93,0.02)', border: '1px solid rgba(246,70,93,0.05)', borderRadius: '8px', padding: '14px' }}>
+                    <h5 style={{ color: 'var(--red-bybit)', fontSize: '12px', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '14px' }}>⚠️</span> Risiko & Ancaman Terdeteksi
+                    </h5>
+                    <ul style={{ paddingLeft: '16px', margin: 0, fontSize: '11.5px', color: 'var(--text-active)', lineHeight: '1.7' }}>
+                      {guardianData.risks.map((rk, i) => (
+                        <li key={i}>{rk}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                </div>
+
+                {/* Conclusion Box */}
+                <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderLeft: '3px solid var(--primary-gold)', borderRadius: '0 6px 6px 0', padding: '12px 16px', fontSize: '12px', lineHeight: '1.6', color: 'var(--text-active)' }}>
+                  <div style={{ fontWeight: 'bold', color: 'var(--primary-gold)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kesimpulan AI Trading Guardian</div>
+                  {guardianData.conclusion}
+                </div>
+
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       </div>
 
