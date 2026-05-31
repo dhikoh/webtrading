@@ -39,6 +39,9 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'BYBIT_RELAY' && msg.stream.includes('@depth')) {
+          const streamSymbol = msg.stream.split('@')[0].toUpperCase();
+          if (streamSymbol !== activeSymbol.toUpperCase()) return;
+          
           const depth = msg.data;
           
           // Asks: tick.a (array of [price, qty])

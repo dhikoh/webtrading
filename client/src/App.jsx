@@ -125,11 +125,14 @@ export default function App() {
             if (ticker) {
               const tickerPrice = parseFloat(ticker.c);
               const tickerChange = parseFloat(ticker.P).toFixed(2);
-              setLatestPrice(tickerPrice);
-              setPriceChangePercent(tickerChange);
+              const streamSymbol = data.stream.split('@')[0].toUpperCase();
+              
+              if (streamSymbol === activeSymbol.toUpperCase()) {
+                setLatestPrice(tickerPrice);
+                setPriceChangePercent(tickerChange);
+              }
 
               // Update global price cache for NAV and CoinList
-              const streamSymbol = data.stream.split('@')[0].toUpperCase();
               if (streamSymbol) {
                 setPriceCache(prev => ({
                   ...prev,
@@ -144,10 +147,13 @@ export default function App() {
             const trade = data.data;
             if (trade && trade.p) {
               const tradePrice = parseFloat(trade.p);
-              setLatestPrice(tradePrice);
+              const streamSymbol = data.stream.split('@')[0].toUpperCase();
+
+              if (streamSymbol === activeSymbol.toUpperCase()) {
+                setLatestPrice(tradePrice);
+              }
 
               // Update global price cache
-              const streamSymbol = data.stream.split('@')[0].toUpperCase();
               if (streamSymbol) {
                 setPriceCache(prev => ({
                   ...prev,

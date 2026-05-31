@@ -306,6 +306,9 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
         if (isCancelled) return;
         const msg = JSON.parse(event.data);
         if (msg.type === 'BYBIT_RELAY' && msg.marketType === marketType && msg.stream.includes('@kline_')) {
+          const streamSymbol = msg.stream.split('@')[0].toUpperCase();
+          if (streamSymbol !== activeSymbol.toUpperCase()) return;
+
           const kline = msg.data.k;
           if (!kline || isCancelled) return;
 
