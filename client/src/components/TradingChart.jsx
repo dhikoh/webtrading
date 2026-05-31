@@ -98,6 +98,8 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
   useEffect(() => {
     if (!containerRef.current || activeTab !== 'chart') return;
 
+    let isCancelled = false;
+
     // 1. Initialize Lightweight Chart Engine
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
@@ -198,7 +200,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
 
     // Helper to update Dynamic HUD Legend
     const updateLegend = (candle, isLatest = false) => {
-      if (!candle) return;
+      if (isCancelled || !candle) return;
       const change = candle.open ? ((candle.close - candle.open) / candle.open) * 100 : 0;
       const range = candle.open ? ((candle.high - candle.low) / candle.open) * 100 : 0;
       
@@ -227,9 +229,11 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
         const symbolUpper = activeSymbol.toUpperCase();
         const url = `${API_URL}/api/market/klines?symbol=${symbolUpper}&marketType=${marketType}&interval=${activeInterval}&limit=300`;
         const res = await fetch(url);
+        if (isCancelled) return;
         if (!res.ok) throw new Error('REST load failed');
 
         const klines = await res.json();
+        if (isCancelled) return;
         
         const candleData = [];
         const volumeData = [];
@@ -267,7 +271,9 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
 
         chart.timeScale().fitContent();
       } catch (err) {
-        console.error('Error loading candlestick historical data:', err.message);
+        if (!isCancelled) {
+          console.error('Error loading candlestick historical data:', err.message);
+        }
       }
     };
 
@@ -276,10 +282,11 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
     // 6. Connect real-time WebSocket dynamic feeds
     const handleWsMessage = (event) => {
       try {
+        if (isCancelled) return;
         const msg = JSON.parse(event.data);
         if (msg.type === 'BYBIT_RELAY' && msg.marketType === marketType && msg.stream.includes('@kline_')) {
           const kline = msg.data.k;
-          if (!kline) return;
+          if (!kline || isCancelled) return;
 
           const time = Math.floor(kline.t / 1000);
           const open = parseFloat(kline.o);
@@ -314,7 +321,9 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
               for (let i = 0; i < period; i++) {
                 sum += data[data.length - 1 - i].close;
               }
-              maSeries.update({ time, value: sum / period });
+              if (!isCancelled) {
+                maSeries.update({ time, value: sum / period });
+              }
             }
           };
 
@@ -341,6 +350,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
 
     // 7. Dynamic Crosshair HUD Interactivity
     chart.subscribeCrosshairMove(param => {
+      if (isCancelled) return;
       if (!param || !param.time || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
         // Hover out: fallback to latest candle
         if (candleDataRef.current.length > 0) {
@@ -357,6 +367,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
 
     // 8. Responsive Observer
     const handleResize = () => {
+      if (isCancelled) return;
       if (chartRef.current && containerRef.current) {
         chartRef.current.resize(containerRef.current.clientWidth, 330);
       }
@@ -366,6 +377,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
     resizeObserver.observe(containerRef.current);
 
     return () => {
+      isCancelled = true;
       resizeObserver.disconnect();
       if (socket) {
         socket.removeEventListener('message', handleWsMessage);

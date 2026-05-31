@@ -339,7 +339,7 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lan
       {/* Columns Sorter Headers */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: '1.2fr 0.9fr 0.9fr', 
+        gridTemplateColumns: '1.1fr 1.15fr 0.75fr', 
         padding: '6px 12px',
         fontSize: '10px',
         color: 'var(--text-muted)',
@@ -385,7 +385,7 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lan
                   onClick={() => onSelectSymbol(s.symbol, activeMarketTab)}
                   style={{ 
                     display: 'grid',
-                    gridTemplateColumns: '1.2fr 0.9fr 0.9fr',
+                    gridTemplateColumns: '1.1fr 1.15fr 0.75fr',
                     padding: '8px 12px',
                     cursor: 'pointer',
                     backgroundColor: isActive ? 'rgba(240, 185, 11, 0.04)' : 'transparent',

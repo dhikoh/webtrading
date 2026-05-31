@@ -22,12 +22,17 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
   const [asks, setAsks] = useState([]);
   const [midPrice, setMidPrice] = useState(null);
   const [prevPrice, setPrevPrice] = useState(null);
+  const [precision, setPrecision] = useState(2);
 
   useEffect(() => {
     // 1. Clear books on symbol transition
     setBids([]);
     setAsks([]);
     setMidPrice(null);
+
+    // Initial fallback precision
+    const defaultPrecision = (activeSymbol.includes('USDT') || activeSymbol.includes('USDC')) ? 2 : 5;
+    setPrecision(defaultPrecision);
 
     // 2. Attach relayed WebSocket message handler for real-time order depth
     const handleWsMessage = (event) => {
@@ -40,6 +45,25 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
           // Bids: tick.b (array of [price, qty])
           const rawAsks = depth.a || [];
           const rawBids = depth.b || [];
+
+          // Dynamically detect decimal precision from the raw string prices
+          if (rawAsks.length > 0 && rawAsks[0][0]) {
+            const rawPrice = rawAsks[0][0];
+            const dotIdx = rawPrice.indexOf('.');
+            if (dotIdx !== -1) {
+              setPrecision(rawPrice.length - dotIdx - 1);
+            } else {
+              setPrecision(0);
+            }
+          } else if (rawBids.length > 0 && rawBids[0][0]) {
+            const rawPrice = rawBids[0][0];
+            const dotIdx = rawPrice.indexOf('.');
+            if (dotIdx !== -1) {
+              setPrecision(rawPrice.length - dotIdx - 1);
+            } else {
+              setPrecision(0);
+            }
+          }
 
           // Map and cast to float
           const formattedAsks = rawAsks.slice(0, 8).map(a => [parseFloat(a[0]), parseFloat(a[1])]);
@@ -109,7 +133,7 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
               onClick={() => onSelectPrice(a.price)}
             >
               <div className="depth-bar ask" style={{ width: `${Math.min(a.depthPct, 100)}%` }}></div>
-              <span className="depth-val depth-price-ask">{a.price.toFixed(activeSymbol.includes('USDT') || activeSymbol.includes('USDC') ? 2 : 5)}</span>
+              <span className="depth-val depth-price-ask">{a.price.toFixed(precision)}</span>
               <span className="depth-val" style={{ color: 'var(--text-active)' }}>{a.qty.toFixed(4)}</span>
               <span className="depth-val" style={{ color: 'var(--text-muted)' }}>{(a.price * a.qty).toFixed(2)}</span>
             </div>
@@ -140,7 +164,7 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
               transition: 'color 0.2s ease'
             }}>
               <PriceIcon size={16} />
-              <span>{midPrice.toFixed(activeSymbol.includes('USDT') || activeSymbol.includes('USDC') ? 2 : 5)}</span>
+              <span>{midPrice.toFixed(precision)}</span>
             </div>
           ) : (
             <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{t.establishing}</span>
@@ -156,7 +180,7 @@ export default function OrderBook({ activeSymbol, marketType, socket, onSelectPr
               onClick={() => onSelectPrice(b.price)}
             >
               <div className="depth-bar bid" style={{ width: `${Math.min(b.depthPct, 100)}%` }}></div>
-              <span className="depth-val depth-price-bid">{b.price.toFixed(activeSymbol.includes('USDT') || activeSymbol.includes('USDC') ? 2 : 5)}</span>
+              <span className="depth-val depth-price-bid">{b.price.toFixed(precision)}</span>
               <span className="depth-val" style={{ color: 'var(--text-active)' }}>{b.qty.toFixed(4)}</span>
               <span className="depth-val" style={{ color: 'var(--text-muted)' }}>{(b.price * b.qty).toFixed(2)}</span>
             </div>

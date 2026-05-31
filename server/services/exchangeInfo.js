@@ -66,7 +66,7 @@ export const fetchFuturesExchangeInfo = async () => {
 
     // Map into simplified records
     const symbols = data.result.list
-      .filter(s => s.status === 'Trading' && s.quoteCoin === 'USDT') // Linear USDT Perpetual Contracts
+      .filter(s => s.status === 'Trading' && s.quoteCoin === 'USDT' && s.contractType === 'LinearPerpetual') // Linear USDT Perpetual Contracts
       .map(s => {
         const pricePrecision = parseInt(s.priceFilter?.tickSize ? Math.max(0, Math.round(-Math.log10(parseFloat(s.priceFilter.tickSize)))) : '2');
         const qtyPrecision = parseInt(s.lotSizeFilter?.qtyStep ? Math.max(0, Math.round(-Math.log10(parseFloat(s.lotSizeFilter.qtyStep)))) : '3');
