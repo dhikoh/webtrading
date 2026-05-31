@@ -23,6 +23,7 @@ export default function App() {
   
   // Dynamic tick states
   const [latestPrice, setLatestPrice] = useState(null);
+  const [clickPriceObj, setClickPriceObj] = useState(null);
   const [priceChangePercent, setPriceChangePercent] = useState('0.0');
   const [floatingPnLs, setFloatingPnLs] = useState({}); // positionId -> { markPrice, unrealizedPnL }
   const [priceCache, setPriceCache] = useState({}); // symbol -> { price, changePct }
@@ -38,32 +39,47 @@ export default function App() {
   
   const accountWsRef = useRef(null);
 
-  // 1. Load User Profile on bootstrap
+  // Unified Account & Trade State Synchronizer
+  const fetchAccountDetails = async () => {
+    if (!token) return;
+    try {
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const [profileRes, ordersRes, positionsRes] = await Promise.all([
+        fetch(`${API_URL}/api/auth/profile`, { headers }),
+        fetch(`${API_URL}/api/trade/open-orders`, { headers }),
+        fetch(`${API_URL}/api/trade/positions`, { headers })
+      ]);
+
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        setUser(profileData.user);
+        setWallets(profileData.wallets);
+      } else if (profileRes.status === 401 || profileRes.status === 403) {
+        handleLogout();
+        return;
+      }
+      
+      if (ordersRes.ok) {
+        const ordersData = await ordersRes.json();
+        setOpenOrders(ordersData);
+      }
+      
+      if (positionsRes.ok) {
+        const positionsData = await positionsRes.json();
+        setPositions(positionsData);
+      }
+    } catch (err) {
+      console.error('Failed to sync account details:', err);
+    }
+  };
+
+  // 1. Load User Profile and details on bootstrap
   useEffect(() => {
     if (!token) {
       setUser(null);
       return;
     }
-
-    const fetchProfile = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/auth/profile`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setUser(data.user);
-          setWallets(data.wallets);
-        } else {
-          // Token expired
-          handleLogout();
-        }
-      } catch (err) {
-        console.error('Failed to connect to backend api:', err);
-      }
-    };
-
-    fetchProfile();
+    fetchAccountDetails();
   }, [token]);
 
   // 2. Establish Real-time Account update stream via Backend WebSocket
@@ -202,21 +218,11 @@ export default function App() {
     setActiveSymbol(symbol.toUpperCase());
     setMarketType(mType);
     setLatestPrice(null); // Reset price index to wait for new tick
+    setClickPriceObj(null);
   };
 
   const handleRefreshAccount = async () => {
-    if (!token) return;
-    try {
-      const res = await fetch(`${API_URL}/api/auth/profile`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setWallets(data.wallets);
-      }
-    } catch (err) {
-      console.error(err);
-    }
+    await fetchAccountDetails();
   };
 
   const handlePriceTick = (price) => {
@@ -281,7 +287,7 @@ export default function App() {
           activeSymbol={activeSymbol}
           marketType={marketType}
           socket={socket}
-          onSelectPrice={(price) => setLatestPrice(price)}
+          onSelectPrice={(price) => setClickPriceObj({ price, timestamp: Date.now() })}
           lang={lang}
         />
 
@@ -290,6 +296,7 @@ export default function App() {
           activeSymbol={activeSymbol}
           marketType={marketType}
           latestPrice={latestPrice}
+          clickPriceObj={clickPriceObj}
           userWallet={wallets}
           onSubmitSuccess={handleRefreshAccount}
           lang={lang}

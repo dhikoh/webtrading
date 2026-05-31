@@ -6,6 +6,7 @@ export default function OrderPanel({
   activeSymbol, 
   marketType, 
   latestPrice, 
+  clickPriceObj, 
   userWallet, 
   onSubmitSuccess,
   lang = 'id'
@@ -24,8 +25,21 @@ export default function OrderPanel({
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const baseAsset = activeSymbol.replace('USDT', '').replace('USDC', '').replace('BNB', '').replace('BTC', '');
-  const quoteAsset = activeSymbol.replace(baseAsset, '');
+  let quoteAsset = 'USDT';
+  let baseAsset = activeSymbol;
+  if (activeSymbol.endsWith('USDT')) {
+    quoteAsset = 'USDT';
+    baseAsset = activeSymbol.slice(0, -4);
+  } else if (activeSymbol.endsWith('USDC')) {
+    quoteAsset = 'USDC';
+    baseAsset = activeSymbol.slice(0, -4);
+  } else if (activeSymbol.endsWith('BTC')) {
+    quoteAsset = 'BTC';
+    baseAsset = activeSymbol.slice(0, -3);
+  } else if (activeSymbol.endsWith('BNB')) {
+    quoteAsset = 'BNB';
+    baseAsset = activeSymbol.slice(0, -3);
+  }
 
   // Translations
   const t = {
@@ -67,12 +81,56 @@ export default function OrderPanel({
     }
   }[lang];
 
+  const isFutures = marketType === 'futures';
+  
+  // Terminology overrides
+  const buyTabText = isFutures
+    ? (lang === 'id' ? 'BELI (Long)' : 'BUY (Long)')
+    : (lang === 'id' ? 'BELI' : 'BUY');
+
+  const sellTabText = isFutures
+    ? (lang === 'id' ? 'JUAL (Short)' : 'SELL (Short)')
+    : (lang === 'id' ? 'JUAL' : 'SELL');
+
+  const availableLabel = isFutures
+    ? (lang === 'id' ? 'Margin Tersedia:' : 'Available Margin:')
+    : (lang === 'id' ? 'Saldo Tersedia:' : 'Available Balance:');
+
+  const submitButtonText = loading
+    ? t.submitting
+    : isFutures
+      ? (side === 'BUY' 
+          ? (lang === 'id' ? `Beli Long ${baseAsset}` : `Buy Long ${baseAsset}`)
+          : (lang === 'id' ? `Jual Short ${baseAsset}` : `Sell Short ${baseAsset}`))
+      : (side === 'BUY'
+          ? (lang === 'id' ? `Beli ${baseAsset}` : `Buy ${baseAsset}`)
+          : (lang === 'id' ? `Jual ${baseAsset}` : `Sell ${baseAsset}`));
+
+  const costLabel = isFutures
+    ? (lang === 'id' ? 'Estimasi Margin:' : 'Est. Margin Cost:')
+    : (lang === 'id' ? 'Total Nilai:' : 'Total Value:');
+    
+  const costUnit = isFutures ? 'USDT' : quoteAsset;
+
+  const parsedPrice = parseFloat(price) || 0;
+  const parsedQty = parseFloat(quantity) || 0;
+  const orderPrice = orderType === 'MARKET' ? (latestPrice || 0) : parsedPrice;
+  const totalCost = orderPrice * parsedQty;
+  const marginCost = isFutures ? (totalCost / leverage) : totalCost;
+
   // Synchronize price field if user clicks order book price or live ticks
   useEffect(() => {
     if (latestPrice && orderType !== 'MARKET' && !price) {
       setPrice(latestPrice.toString());
     }
   }, [latestPrice, orderType]);
+
+  // Synchronize price field if user explicitly clicked a price in the order book
+  useEffect(() => {
+    if (clickPriceObj && clickPriceObj.price) {
+      setPrice(clickPriceObj.price.toString());
+    }
+  }, [clickPriceObj]);
 
   // Adjust order panel input states on symbol or type changes
   useEffect(() => {
@@ -183,6 +241,43 @@ export default function OrderPanel({
   return (
     <section className="trading-panel" style={{ gridColumn: '3', gridRow: '2', display: 'flex', flexDirection: 'column' }}>
       
+      {/* Trading Pair Header Info */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        padding: '10px 12px', 
+        backgroundColor: '#1b2026', 
+        borderBottom: '1px solid var(--border-color)',
+        height: '40px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-active)' }}>
+            {baseAsset}/{quoteAsset}
+          </span>
+          <span style={{ 
+            fontSize: '9px', 
+            fontWeight: 600, 
+            padding: '2px 6px', 
+            borderRadius: '10px', 
+            backgroundColor: isFutures ? 'rgba(255, 177, 26, 0.15)' : 'rgba(14, 203, 129, 0.15)', 
+            color: isFutures ? 'var(--primary-gold)' : 'var(--green-bybit)',
+            textTransform: 'uppercase'
+          }}>
+            {marketType}
+          </span>
+        </div>
+        {latestPrice && (
+          <span style={{ 
+            fontSize: '12px', 
+            fontWeight: 600, 
+            color: 'var(--text-active)' 
+          }}>
+            {latestPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+          </span>
+        )}
+      </div>
+
       {/* Side buy/sell action switch */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', height: '35px' }}>
         <button
@@ -198,7 +293,7 @@ export default function OrderPanel({
           }}
           onClick={() => setSide('BUY')}
         >
-          {t.buyLong}
+          {buyTabText}
         </button>
         <button
           style={{
@@ -213,7 +308,7 @@ export default function OrderPanel({
           }}
           onClick={() => setSide('SELL')}
         >
-          {t.sellShort}
+          {sellTabText}
         </button>
       </div>
 
@@ -343,18 +438,30 @@ export default function OrderPanel({
         )}
 
         {/* Quick Percentages sizing widgets */}
-        <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+        <div style={{ display: 'flex', gap: '5px', marginTop: '2px' }}>
           {[0.25, 0.50, 0.75, 1.0].map((pct, idx) => (
             <button
               key={idx}
               type="button"
-              className="tab-btn"
               style={{
-                padding: '4px 0',
-                backgroundColor: 'var(--bg-input)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '3px',
-                fontSize: '10px'
+                flex: 1,
+                padding: '6px 0',
+                backgroundColor: '#242d35',
+                border: 'none',
+                borderRadius: '4px',
+                color: 'var(--text-active)',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#2f3a44';
+                e.currentTarget.style.color = 'var(--primary-gold)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#242d35';
+                e.currentTarget.style.color = 'var(--text-active)';
               }}
               onClick={() => handlePercentageClick(pct)}
             >
@@ -394,11 +501,30 @@ export default function OrderPanel({
           </div>
         )}
 
+        {/* Estimated Cost indicator card */}
+        {(quantity && orderPrice > 0) ? (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            padding: '8px 10px',
+            backgroundColor: 'rgba(255, 177, 26, 0.05)',
+            border: '1px dashed rgba(255, 177, 26, 0.25)',
+            borderRadius: '4px',
+            fontSize: '11px',
+            marginTop: '4px'
+          }}>
+            <span style={{ color: 'var(--text-muted)' }}>{costLabel}</span>
+            <span style={{ fontWeight: 600, color: 'var(--primary-gold)' }}>
+              {isFutures ? marginCost.toFixed(4) : totalCost.toFixed(2)} {costUnit}
+            </span>
+          </div>
+        ) : null}
+
         {/* Collateral Ledger Available details */}
         <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', fontSize: '11.5px' }}>
-          <span style={{ color: 'var(--text-muted)' }}>{t.available}</span>
-          <span style={{ fontWeight: 600, color: 'var(--text-active)' }}>
-            {getAvailableBalance().toFixed(4)} {marketType === 'futures' ? 'USDT' : (side === 'BUY' ? quoteAsset : baseAsset)}
+          <span style={{ color: 'var(--text-muted)' }}>{availableLabel}</span>
+          <span style={{ fontWeight: 600, color: 'var(--primary-gold)' }}>
+            {getAvailableBalance().toFixed(4)} {isFutures ? 'USDT' : (side === 'BUY' ? quoteAsset : baseAsset)}
           </span>
         </div>
 
@@ -410,19 +536,27 @@ export default function OrderPanel({
             backgroundColor: side === 'BUY' ? 'var(--green-bybit)' : 'var(--red-bybit)',
             color: '#000',
             fontWeight: 700,
-            fontSize: '13.5px',
+            fontSize: '13px',
             border: 'none',
             borderRadius: '4px',
             padding: '10px',
             cursor: 'pointer',
             marginTop: '6px',
             width: '100%',
-            transition: 'opacity 0.2s ease'
+            transition: 'all 0.15s ease',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
           }}
-          onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-          onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.filter = 'brightness(1.15)';
+            e.currentTarget.style.transform = 'scale(1.01)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.filter = 'none';
+            e.currentTarget.style.transform = 'none';
+          }}
         >
-          {loading ? t.submitting : `${side === 'BUY' ? t.buyBtn : t.sellBtn} ${baseAsset}`}
+          {submitButtonText}
         </button>
 
       </form>
