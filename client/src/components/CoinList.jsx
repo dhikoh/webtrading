@@ -457,7 +457,10 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lan
                       fontFamily: 'monospace',
                       color: isActive ? 'var(--primary-gold)' : 'var(--text-active)'
                     }}>
-                      {parseFloat(s.lastPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: s.pricePrecision || 4 })}
+                      {parseFloat(s.lastPrice).toLocaleString('en-US', { 
+                        minimumFractionDigits: 2, 
+                        maximumFractionDigits: Math.min(20, Math.max(2, Number.isInteger(s.pricePrecision) ? s.pricePrecision : 4)) 
+                      })}
                     </span>
                     <span style={{ color: 'var(--text-muted)', fontSize: '9.5px', fontFamily: 'monospace' }}>
                       ${parseFloat(s.lastPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
