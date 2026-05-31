@@ -80,13 +80,27 @@ wss.on('connection', (ws, req) => {
       if (parsed.type === 'SUBSCRIBE') {
         const symbol = parsed.symbol?.toUpperCase();
         const marketType = parsed.marketType || 'spot';
-        ws.activeSymbol = symbol;
-        ws.activeMarketType = marketType;
         
-        console.log(`[WS SUBSCRIBE] User ${ws.username} subscribed to ${symbol} (${marketType})`);
+        if (!ws.subscribedSymbols) {
+          ws.subscribedSymbols = new Set();
+        }
+
+        const majorSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'XRPUSDT'];
         
-        // Dynamically register subscription and ensure matcher has an active stream
-        matcher.registerUserSubscription(symbol);
+        if (symbol && !majorSymbols.includes(symbol)) {
+          for (const sub of ws.subscribedSymbols) {
+            const [, subSym] = sub.split(':');
+            if (!majorSymbols.includes(subSym)) {
+              ws.subscribedSymbols.delete(sub);
+            }
+          }
+        }
+
+        if (symbol) {
+          ws.subscribedSymbols.add(`${marketType}:${symbol}`);
+          console.log(`[WS SUBSCRIBE] User ${ws.username} subscribed to ${symbol} (${marketType})`);
+          matcher.registerUserSubscription(symbol);
+        }
       }
     } catch (err) {
       // quiet

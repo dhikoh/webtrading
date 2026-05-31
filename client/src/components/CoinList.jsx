@@ -39,21 +39,25 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lan
   }, [favorites]);
 
   useEffect(() => {
-    const loadSymbols = async () => {
-      setLoading(true);
+    let isMounted = true;
+
+    const loadSymbols = async (isSilent = false) => {
+      if (!isSilent) setLoading(true);
       try {
         const endpoint = activeMarketTab === 'spot' ? '/api/market/spot-info' : '/api/market/futures-info';
         const res = await fetch(`${API_URL}${endpoint}`);
         const data = await res.json();
         
+        if (!isMounted) return;
+
         // Enrich symbol data with exchange metadata
         const enriched = (Array.isArray(data) ? data : []).map(s => {
           return {
             ...s,
             fullName: COIN_NAMES[s.baseAsset] || `${s.baseAsset} Token`,
-            lastPrice: 0,
-            vol24h: '---',
-            change24h: 0,
+            lastPrice: s.lastPrice || 0,
+            vol24h: s.vol24h || '---',
+            change24h: s.change24h || 0,
             isSeed: s.baseAsset.includes('AIGEN') || s.baseAsset === 'MEME'
           };
         });
@@ -62,11 +66,21 @@ export default function CoinList({ activeSymbol, marketType, onSelectSymbol, lan
       } catch (err) {
         console.error('Failed to load active symbols:', err);
       } finally {
-        setLoading(false);
+        if (!isSilent) setLoading(false);
       }
     };
 
-    loadSymbols();
+    loadSymbols(false);
+
+    // Set up silent polling interval every 8 seconds
+    const intervalId = setInterval(() => {
+      loadSymbols(true);
+    }, 8000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, [activeMarketTab]);
 
   // Update symbol prices from priceCache whenever it changes

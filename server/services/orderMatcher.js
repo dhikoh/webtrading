@@ -301,13 +301,13 @@ class OrderMatcher {
     if (type === 'futures') stream.futuresWs = ws;
   }
 
-  // Broadcast helper to target users watching this specific viewport
   relayToSubscribedClients(symbol, type, message) {
     if (!this.wsServer) return;
     this.wsServer.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN &&
-          client.activeSymbol === symbol &&
-          client.activeMarketType === type) {
+      const isSubscribed = client.readyState === WebSocket.OPEN &&
+                           client.subscribedSymbols &&
+                           client.subscribedSymbols.has(`${type}:${symbol}`);
+      if (isSubscribed) {
         client.send(message);
       }
     });
