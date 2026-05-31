@@ -465,63 +465,170 @@ export function analyzeGuardianDSS(symbol, klines) {
     tpPrice = currentPrice - 4 * currentAtr;
   }
 
-  // 11. Safety Check Score (20%)
-  let safetyScore = 20;
-  const safetyChecks = {
-    volumeSufficient: volumeSignal !== 'DECREASING',
-    marketNotTooWild: volatilityState !== 'EXTREME',
-    noConflictingIndicators: true,
-    riskRewardHealthy: true,
-    historicalValidationOk: histWinrate >= 50
-  };
-
-  // Check conflicts
-  if (setupDir === 'LONG' && (currentRsi > 72 || currentMacdHist < 0)) {
-    safetyChecks.noConflictingIndicators = false;
-    safetyScore -= 5;
-  }
-  if (setupDir === 'SHORT' && (currentRsi < 28 || currentMacdHist > 0)) {
-    safetyChecks.noConflictingIndicators = false;
-    safetyScore -= 5;
+  // 11. 7-Point Validation Engine
+  const trendClear = trendDirection !== 'SIDEWAYS';
+  
+  let momentumAgree = false;
+  if (setupDir === 'LONG') {
+    momentumAgree = currentRsi > 50 && currentMacdHist > 0;
+  } else if (setupDir === 'SHORT') {
+    momentumAgree = currentRsi < 50 && currentMacdHist < 0;
   }
 
-  if (volatilityState === 'EXTREME') {
-    safetyChecks.marketNotTooWild = false;
-    safetyScore -= 10;
+  const volumeSufficient = volumeSignal !== 'DECREASING';
+
+  let rrPassed = true;
+  let rrDetail = 'Favorable 1:2 Risk-Reward ratio with sufficient breathing room.';
+  if (setupDir === 'LONG') {
+    const spaceToRes = rLevel - currentPrice;
+    if (spaceToRes < 0.5 * currentAtr) {
+      rrPassed = false;
+      rrDetail = 'Entry too close to swing resistance (poor risk-reward space).';
+    }
+  } else if (setupDir === 'SHORT') {
+    const spaceToSup = currentPrice - sLevel;
+    if (spaceToSup < 0.5 * currentAtr) {
+      rrPassed = false;
+      rrDetail = 'Entry too close to swing support (poor risk-reward space).';
+    }
   }
 
-  if (!safetyChecks.volumeSufficient) safetyScore -= 5;
+  const winratePassed = histWinrate >= 50;
+  const volatilitySafe = volatilityState !== 'EXTREME' && volatilityState !== 'LOW';
 
-  // 12. Final Total Weighted Score
-  // Weights: Trend 25%, Momentum 15%, Volume 10%, Pattern 10%, Structure 15%, History 15%, RR 10%, Safety 20%
+  let conflictsPassed = true;
+  let conflictsDetail = 'No indicator conflicts detected.';
+  if (setupDir === 'LONG') {
+    if (currentRsi > 70) {
+      conflictsPassed = false;
+      conflictsDetail = 'Indicator Conflict: RSI is overbought (>70) on LONG setup.';
+    } else if (currentMacdHist < 0) {
+      conflictsPassed = false;
+      conflictsDetail = 'Indicator Conflict: MACD histogram is negative (<0) on LONG setup.';
+    }
+  } else if (setupDir === 'SHORT') {
+    if (currentRsi < 30) {
+      conflictsPassed = false;
+      conflictsDetail = 'Indicator Conflict: RSI is oversold (<30) on SHORT setup.';
+    } else if (currentMacdHist > 0) {
+      conflictsPassed = false;
+      conflictsDetail = 'Indicator Conflict: MACD histogram is positive (>0) on SHORT setup.';
+    }
+  } else {
+    conflictsPassed = false;
+    conflictsDetail = 'No active setup trigger. Indicators are conflicting/neutral.';
+  }
+
+  const validations = [
+    {
+      name: 'Trend Alignment',
+      passed: trendClear,
+      detail: trendClear ? `Trend is clear (${trendDirection})` : 'Trend is sideways / congested (EMAs intertwined)'
+    },
+    {
+      name: 'Momentum Support',
+      passed: momentumAgree,
+      detail: momentumAgree ? 'Momentum indicators agree with setup direction' : 'Momentum does not support setup direction'
+    },
+    {
+      name: 'Volume Sufficiency',
+      passed: volumeSufficient,
+      detail: volumeSufficient ? `Sufficient trading volume (${volumeSignal.toLowerCase()})` : 'Volume is decreasing (lack of institutional interest)'
+    },
+    {
+      name: 'Risk-Reward Ratio (>= 1:2)',
+      passed: rrPassed,
+      detail: rrDetail
+    },
+    {
+      name: 'Historical Winrate (>= 50%)',
+      passed: winratePassed,
+      detail: winratePassed ? `Historical winrate is favorable (${histWinrate}%)` : `Historical winrate is too low (${histWinrate}%)`
+    },
+    {
+      name: 'Volatility State (Safe)',
+      passed: volatilitySafe,
+      detail: volatilitySafe ? `Volatility is stable (${volatilityState.toLowerCase()})` : (volatilityState === 'EXTREME' ? 'Volatility is extreme (high stop-out risk)' : 'Market is consolidating (low volatility)')
+    },
+    {
+      name: 'Indicator Conflicts (None)',
+      passed: conflictsPassed,
+      detail: conflictsDetail
+    }
+  ];
+
+  const failuresCount = validations.filter(v => !v.passed).length;
+
+  // 12. Safety Scores Calculation
+  let safetyScore = 20 - (failuresCount * 3);
+  if (safetyScore < 0) safetyScore = 0;
+
   const totalScore = trendScore + momentumScore + volumeScore + patternScore + structureScore + histScore + riskScore + safetyScore;
 
-  // 13. Determine status
+  // 13. Determine status & trading permission
   let finalStatus = 'WAIT';
-  
-  if (setupDir === 'LONG') {
-    if (totalScore >= 90) finalStatus = 'STRONG BUY';
-    else if (totalScore >= 70) finalStatus = 'BUY';
-    else if (totalScore >= 50) finalStatus = 'WAIT';
-    else finalStatus = 'AVOID';
-  } else if (setupDir === 'SHORT') {
-    if (totalScore >= 90) finalStatus = 'STRONG SELL';
-    else if (totalScore >= 70) finalStatus = 'SELL';
-    else if (totalScore >= 50) finalStatus = 'WAIT';
-    else finalStatus = 'AVOID';
+  let tradingPermission = 'NO';
+
+  if (failuresCount === 0 && setupDir) {
+    tradingPermission = 'YES';
+    if (setupDir === 'LONG') {
+      finalStatus = totalScore >= 90 ? 'STRONG BUY' : 'BUY';
+    } else {
+      finalStatus = totalScore >= 90 ? 'STRONG SELL' : 'SELL';
+    }
+  } else if (failuresCount > 2) {
+    finalStatus = 'AVOID';
+    tradingPermission = 'NO';
   } else {
     finalStatus = 'WAIT';
+    tradingPermission = 'NO';
   }
 
-  // Safety Overrides
-  if (volatilityState === 'EXTREME' || totalScore < 30) {
-    finalStatus = 'AVOID';
-  } else if (marketRegime === 'SIDEWAYS' && finalStatus !== 'WAIT' && finalStatus !== 'AVOID') {
-    // Downgrade setup to wait or avoid in purely sideways regime
-    finalStatus = 'WAIT';
+  // 14. Safety Warning Banner Info
+  let safetyWarning = null;
+  if (volatilityState === 'EXTREME') {
+    safetyWarning = {
+      header: '⚠️ EXTREME VOLATILITY',
+      detail: 'Market conditions are extremely volatile. Wide price swings make stop-outs highly probable. Protect capital by waiting for stability.'
+    };
+  } else if (volumeSignal === 'DECREASING') {
+    safetyWarning = {
+      header: '⚠️ LOW LIQUIDITY',
+      detail: 'Trading volume is decreasing. Low liquidity increases the risk of slippage, fake breakouts, and high spreads.'
+    };
+  } else if (volatilityState === 'LOW') {
+    safetyWarning = {
+      header: '⚠️ MARKET CONSOLIDATION',
+      detail: 'The market is currently consolidating inside a very narrow range (low volatility). Do not enter until a clear breakout occurs.'
+    };
+  } else if (!rrPassed) {
+    safetyWarning = {
+      header: '⚠️ POOR RISK REWARD',
+      detail: 'Price is trading too close to key structural support/resistance. The upside potential is not sufficient to justify the risk.'
+    };
+  } else if (failuresCount > 2) {
+    safetyWarning = {
+      header: '⚠️ AVOID TRADING ALERT',
+      detail: `High risk market state! ${failuresCount} validation checks failed. Multiple indicators are in conflict. Keep cash in hand.`
+    };
+  } else if (failuresCount > 0) {
+    safetyWarning = {
+      header: '⚠️ HIGH RISK MARKET',
+      detail: `Caution: ${failuresCount} validation check(s) failed. Trend or momentum does not fully align for a high-probability trade.`
+    };
+  } else if (!setupDir) {
+    safetyWarning = {
+      header: '⚠️ NO TRADE ALERT',
+      detail: 'No high-probability trigger setup detected. Moving averages are intertwined or indicators are conflicting.'
+    };
+  } else {
+    safetyWarning = {
+      header: '✅ OPTIMAL CONDITIONS',
+      detail: 'All 7 key validation checks successfully passed. Risk-reward is optimal, volume is supporting, and trend aligns.'
+    };
   }
 
-  // 14. Bullet Points reasons
+  // 15. Bullet Points reasons
   const reasons = [];
   if (trendDirection !== 'SIDEWAYS') {
     reasons.push(trendDirection === 'BULLISH' ? 'Trend is aligned bullish (EMA 9 > 21 > 50 > 200)' : 'Trend is aligned bearish (EMA 9 < 21 < 50 < 200)');
@@ -566,7 +673,6 @@ export function analyzeGuardianDSS(symbol, klines) {
     risks.push('Market is sideways - high risk of whipsaws and false signals.');
   }
 
-  // Default risk if empty
   if (risks.length === 0) {
     risks.push('Normal market risk applies.');
   }
@@ -584,6 +690,7 @@ export function analyzeGuardianDSS(symbol, klines) {
   }
 
   return {
+    // Backward compatibility
     symbol,
     status: finalStatus,
     confidence: totalScore,
@@ -601,6 +708,35 @@ export function analyzeGuardianDSS(symbol, klines) {
       total: backtest1000.count,
       wins: backtest1000.wins,
       losses: backtest1000.losses
+    },
+
+    // Phase 18 restructured properties
+    safetyWarning,
+    marketConditions: {
+      regime: marketRegime,
+      trend: trendDirection,
+      momentum: (setupDir ? `${setupDir} MOMENTUM` : 'NEUTRAL'),
+      volume: volumeSignal,
+      volatility: volatilityState
+    },
+    tradingPermission,
+    riskManagement: {
+      stopLoss: slPrice.toFixed(4),
+      takeProfit: tpPrice.toFixed(4),
+      riskReward: '1 : 2'
+    },
+    historicalValidation: {
+      winrate: `${histWinrate}%`,
+      setupsCount: backtest1000.count,
+      wins: backtest1000.wins,
+      losses: backtest1000.losses
+    },
+    explanation: {
+      validations,
+      reasons,
+      risks,
+      conclusion
     }
   };
 }
+

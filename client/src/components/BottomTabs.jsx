@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, PlusCircle, Trash2, ArrowLeftRight, FileText, Database } from 'lucide-react';
+import { ShieldCheck, PlusCircle, Trash2, ArrowLeftRight, FileText, Database, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { API_URL } from '../config.js';
 
 export default function BottomTabs({ 
@@ -1031,7 +1031,19 @@ export default function BottomTabs({
               {t.noData}
             </div>
           ) : (() => {
-            // Determine status badge colors
+            // Determine styles based on trading permission and status
+            const isAllowed = guardianData.tradingPermission === 'YES';
+            const statusColor = isAllowed 
+              ? 'var(--green-bybit)' 
+              : (guardianData.status === 'AVOID' ? 'var(--red-bybit)' : 'var(--primary-gold)');
+            
+            const warningStyles = isAllowed 
+              ? { bg: 'rgba(14,203,129,0.06)', border: 'rgba(14,203,129,0.2)', bar: 'var(--green-bybit)', text: '#0ecb81' }
+              : (guardianData.status === 'AVOID'
+                  ? { bg: 'rgba(246,70,93,0.06)', border: 'rgba(246,70,93,0.2)', bar: 'var(--red-bybit)', text: '#f6465d' }
+                  : { bg: 'rgba(255,177,26,0.06)', border: 'rgba(255,177,26,0.2)', bar: 'var(--primary-gold)', text: '#ffb11a' }
+                );
+
             const badgeStyles = {
               'STRONG BUY': { bg: 'rgba(14,203,129,0.15)', text: '#0ecb81', border: '1px solid rgba(14,203,129,0.3)', glow: '0 0 10px rgba(14,203,129,0.2)' },
               'BUY': { bg: 'rgba(14,203,129,0.1)', text: '#0ecb81', border: '1px solid rgba(14,203,129,0.2)', glow: 'none' },
@@ -1041,39 +1053,126 @@ export default function BottomTabs({
               'AVOID': { bg: 'rgba(132,142,156,0.1)', text: '#848e9c', border: '1px solid rgba(132,142,156,0.2)', glow: 'none' }
             }[guardianData.status] || { bg: 'rgba(255,255,255,0.05)', text: '#fff', border: '1px solid rgba(255,255,255,0.1)', glow: 'none' };
 
+            const cond = guardianData.marketConditions || {};
+            const riskMgmt = guardianData.riskManagement || {};
+            const histVal = guardianData.historicalValidation || {};
+            const expl = guardianData.explanation || {};
+
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
-                {/* Upper Cards Grid */}
+                {/* 1. Safety Warning Banner */}
+                {guardianData.safetyWarning && (
+                  <div style={{ 
+                    backgroundColor: warningStyles.bg, 
+                    border: `1px solid ${warningStyles.border}`,
+                    borderLeft: `4px solid ${warningStyles.bar}`,
+                    borderRadius: '4px',
+                    padding: '12px 16px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px'
+                  }}>
+                    <AlertTriangle color={warningStyles.text} size={20} style={{ marginTop: '2px', flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontWeight: 'bold', fontSize: '13px', color: warningStyles.text, marginBottom: '2px' }}>
+                        {guardianData.safetyWarning.header}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-active)', lineHeight: '1.5' }}>
+                        {guardianData.safetyWarning.detail}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Market Condition HUD */}
+                <div style={{ 
+                  backgroundColor: 'rgba(255,255,255,0.01)', 
+                  border: '1px solid rgba(255,255,255,0.03)', 
+                  borderRadius: '6px', 
+                  padding: '12px 14px' 
+                }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px', fontWeight: 'bold' }}>
+                    Market Condition & Regime Overview
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                    {[
+                      { label: 'Market Regime', val: cond.regime, col: cond.regime?.includes('VOLATILITY') ? 'var(--red-bybit)' : (cond.regime?.includes('BULLISH') ? 'var(--green-bybit)' : 'var(--text-active)') },
+                      { label: 'Trend Direction', val: cond.trend, col: cond.trend === 'BULLISH' ? 'var(--green-bybit)' : (cond.trend === 'BEARISH' ? 'var(--red-bybit)' : 'var(--primary-gold)') },
+                      { label: 'Momentum Bias', val: cond.momentum, col: cond.momentum?.includes('LONG') ? 'var(--green-bybit)' : (cond.momentum?.includes('SHORT') ? 'var(--red-bybit)' : 'var(--text-muted)') },
+                      { label: 'Volume State', val: cond.volume, col: cond.volume === 'SPIKE' ? 'var(--green-bybit)' : (cond.volume === 'DECREASING' ? 'var(--red-bybit)' : 'var(--text-active)') },
+                      { label: 'Volatility State', val: cond.volatility, col: cond.volatility === 'EXTREME' ? 'var(--red-bybit)' : (cond.volatility === 'LOW' ? 'var(--primary-gold)' : 'var(--green-bybit)') }
+                    ].map((m, idx) => (
+                      <div key={idx} style={{ backgroundColor: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '4px', padding: '8px 10px' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px' }}>{m.label}</div>
+                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: m.col }}>{m.val}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Upper Metrics Grid: Permission + Recommendation + Confidence */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
                   
-                  {/* Status Badge Card */}
-                  <div style={{ flex: '1 1 250px', backgroundColor: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Guardian Status</div>
-                    <div style={{
-                      backgroundColor: badgeStyles.bg,
-                      color: badgeStyles.text,
-                      border: badgeStyles.border,
-                      boxShadow: badgeStyles.glow,
-                      borderRadius: '4px',
-                      padding: '8px 24px',
-                      fontSize: '18px',
-                      fontWeight: '800',
-                      letterSpacing: '0.05em',
-                      textAlign: 'center',
-                      marginBottom: '10px'
-                    }}>
-                      {guardianData.status}
+                  {/* 3. Recommendation & Permission Card */}
+                  <div style={{ 
+                    flex: '1 1 300px', 
+                    backgroundColor: 'rgba(255,255,255,0.015)', 
+                    border: '1px solid rgba(255,255,255,0.03)', 
+                    borderRadius: '8px', 
+                    padding: '16px', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    justifyContent: 'center',
+                    gap: '12px'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Trading Permission</div>
+                      <div style={{ 
+                        fontSize: '16px', 
+                        fontWeight: '800', 
+                        color: isAllowed ? 'var(--green-bybit)' : 'var(--red-bybit)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        {isAllowed ? (
+                          <>
+                            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--green-bybit)' }}></span>
+                            YES (ENTRY ALLOWED)
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--red-bybit)' }}></span>
+                            NO (PRACTICE PATIENCE)
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                      Regime: <strong style={{ color: 'var(--text-active)' }}>{guardianData.marketRegime}</strong>
+
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Guardian Recommendation</div>
+                      <div style={{
+                        backgroundColor: badgeStyles.bg,
+                        color: badgeStyles.text,
+                        border: badgeStyles.border,
+                        boxShadow: badgeStyles.glow,
+                        borderRadius: '4px',
+                        padding: '6px 16px',
+                        fontSize: '16px',
+                        fontWeight: '800',
+                        letterSpacing: '0.05em',
+                        textAlign: 'center',
+                        display: 'inline-block'
+                      }}>
+                        {guardianData.status}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Confidence circular progress or gauge */}
-                  <div style={{ flex: '1 1 220px', backgroundColor: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', padding: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    {/* SVG Progress Circle */}
-                    <div style={{ position: 'relative', width: '70px', height: '70px' }}>
+                  {/* Confidence progress ring */}
+                  <div style={{ flex: '1 1 200px', backgroundColor: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', padding: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ position: 'relative', width: '70px', height: '70px', flexShrink: 0 }}>
                       <svg width="70" height="70" viewBox="0 0 36 36">
                         <path
                           d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
@@ -1084,87 +1183,162 @@ export default function BottomTabs({
                         <path
                           d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                           fill="none"
-                          stroke="var(--primary-gold)"
+                          stroke={statusColor}
                           strokeDasharray={`${guardianData.confidence}, 100`}
                           strokeWidth="3.5"
                           strokeLinecap="round"
                           style={{ transition: 'stroke-dasharray 0.5s ease' }}
                         />
                       </svg>
-                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '15px', fontWeight: '800', color: 'var(--primary-gold)' }}>
+                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '14px', fontWeight: '800', color: statusColor }}>
                         {guardianData.confidence}%
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.confidenceLabel}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Setup Quality Score</div>
                       <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '2px', color: 'var(--text-active)' }}>
-                        {guardianData.tradeQualityScore >= 70 ? 'High Probability' : guardianData.tradeQualityScore >= 50 ? 'Moderate/Cautious' : 'Low Probability'}
+                        {guardianData.confidence >= 70 ? 'High Probability' : guardianData.confidence >= 50 ? 'Moderate/Cautious' : 'Low Probability'}
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Score: {guardianData.tradeQualityScore}/100</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Score: {guardianData.confidence}/100</div>
                     </div>
                   </div>
 
-                  {/* Backtest & Winrate metrics */}
+                  {/* 6. Historical Validation (Backtest Engine) */}
                   <div style={{ flex: '1 1 250px', backgroundColor: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.winrateTitle}</div>
-                    <div style={{ fontSize: '24px', fontWeight: '800', color: parseFloat(guardianData.historicalWinrate) >= 55 ? 'var(--green-bybit)' : 'var(--text-active)', margin: '4px 0' }}>
-                      {guardianData.historicalWinrate}
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Historical Backtest Winrate</div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: parseFloat(histVal.winrate) >= 55 ? 'var(--green-bybit)' : 'var(--text-active)', margin: '4px 0' }}>
+                      {histVal.winrate}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      Based on <strong style={{ color: 'var(--text-active)' }}>{guardianData.backtestStats.total}</strong> setups detected in past 1000 candles
+                      Based on <strong style={{ color: 'var(--text-active)' }}>{histVal.setupsCount}</strong> setups (Wins: {histVal.wins}, Losses: {histVal.losses}) in 1000 candles
                     </div>
                   </div>
 
                 </div>
 
-                {/* DSS Strategy Parameters Cards Grid */}
+                {/* 4. Entry Zone Card */}
+                <div style={{ 
+                  backgroundColor: 'rgba(255,177,26,0.02)', 
+                  border: '1px solid rgba(255,177,26,0.08)', 
+                  borderRadius: '6px', 
+                  padding: '14px 16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Target Entry Zone</div>
+                    <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--primary-gold)' }}>
+                      {guardianData.entryZone}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right', maxWidth: '300px' }}>
+                    Execute positions strictly within this zone to preserve optimal trade metrics.
+                  </div>
+                </div>
+
+                {/* 5. Risk Management Parameter Cards Grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
                   {[
-                    { label: 'Entry Zone', val: guardianData.entryZone, color: 'var(--primary-gold)' },
-                    { label: 'Stop Loss', val: guardianData.stopLoss, color: 'var(--red-bybit)' },
-                    { label: 'Take Profit', val: guardianData.takeProfit, color: 'var(--green-bybit)' },
-                    { label: 'Risk Reward', val: guardianData.riskReward, color: 'var(--text-active)' }
+                    { label: 'Stop Loss Target (SL)', val: riskMgmt.stopLoss, color: 'var(--red-bybit)' },
+                    { label: 'Take Profit Target (TP)', val: riskMgmt.takeProfit, color: 'var(--green-bybit)' },
+                    { label: 'Risk Reward Ratio (R:R)', val: riskMgmt.riskReward, color: 'var(--text-active)' }
                   ].map((p, idx) => (
                     <div key={idx} style={{ backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '6px', padding: '10px' }}>
                       <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px' }}>{p.label}</div>
-                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: p.color }}>{p.val}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 'bold', color: p.color }}>{p.val}</div>
                     </div>
                   ))}
                 </div>
 
-                {/* Reasons and Risks checklist splits */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                {/* 7. Explanations (7-Point Validation Checklist, Reasons, Risks & Conclusion) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   
-                  {/* Left Column: Reasons */}
-                  <div style={{ backgroundColor: 'rgba(14,203,129,0.02)', border: '1px solid rgba(14,203,129,0.05)', borderRadius: '8px', padding: '14px' }}>
-                    <h5 style={{ color: 'var(--green-bybit)', fontSize: '12px', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '14px' }}>✓</span> Checklist Analisis & Pendukung
+                  {/* 7-Point Validation Checklist Table */}
+                  <div style={{ 
+                    backgroundColor: 'rgba(255,255,255,0.01)', 
+                    border: '1px solid rgba(255,255,255,0.03)', 
+                    borderRadius: '8px', 
+                    padding: '14px' 
+                  }}>
+                    <h5 style={{ color: 'var(--text-active)', fontSize: '12px', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <ShieldCheck color="var(--primary-gold)" size={16} /> 7-Point Technical Validation Checklist
                     </h5>
-                    <ul style={{ paddingLeft: '16px', margin: 0, fontSize: '11.5px', color: 'var(--text-active)', lineHeight: '1.7' }}>
-                      {guardianData.reasons.map((r, i) => (
-                        <li key={i}>{r}</li>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {expl.validations && expl.validations.map((check, idx) => (
+                        <div key={idx} style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between', 
+                          padding: '8px 12px',
+                          backgroundColor: 'rgba(255,255,255,0.005)',
+                          border: '1px solid rgba(255,255,255,0.015)',
+                          borderRadius: '4px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {check.passed ? (
+                              <CheckCircle color="var(--green-bybit)" size={16} />
+                            ) : (
+                              <XCircle color={isAllowed ? 'var(--red-bybit)' : 'var(--text-muted)'} size={16} />
+                            )}
+                            <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--text-active)' }}>
+                              {check.name}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '11.5px', color: check.passed ? 'var(--text-active)' : 'var(--text-muted)' }}>
+                            {check.detail}
+                          </span>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
 
-                  {/* Right Column: Risks */}
-                  <div style={{ backgroundColor: 'rgba(246,70,93,0.02)', border: '1px solid rgba(246,70,93,0.05)', borderRadius: '8px', padding: '14px' }}>
-                    <h5 style={{ color: 'var(--red-bybit)', fontSize: '12px', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '14px' }}>⚠️</span> Risiko & Ancaman Terdeteksi
-                    </h5>
-                    <ul style={{ paddingLeft: '16px', margin: 0, fontSize: '11.5px', color: 'var(--text-active)', lineHeight: '1.7' }}>
-                      {guardianData.risks.map((rk, i) => (
-                        <li key={i}>{rk}</li>
-                      ))}
-                    </ul>
+                  {/* Supporting reasons and risks split columns */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    
+                    {/* Left Column: Reasons */}
+                    <div style={{ backgroundColor: 'rgba(14,203,129,0.01)', border: '1px solid rgba(14,203,129,0.03)', borderRadius: '8px', padding: '14px' }}>
+                      <h5 style={{ color: 'var(--green-bybit)', fontSize: '12px', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        ✓ Checklist Analisis & Pendukung
+                      </h5>
+                      <ul style={{ paddingLeft: '16px', margin: 0, fontSize: '11.5px', color: 'var(--text-active)', lineHeight: '1.7' }}>
+                        {expl.reasons && expl.reasons.map((r, i) => (
+                          <li key={i}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Right Column: Risks */}
+                    <div style={{ backgroundColor: 'rgba(246,70,93,0.01)', border: '1px solid rgba(246,70,93,0.03)', borderRadius: '8px', padding: '14px' }}>
+                      <h5 style={{ color: 'var(--red-bybit)', fontSize: '12px', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        ⚠️ Risiko & Ancaman Terdeteksi
+                      </h5>
+                      <ul style={{ paddingLeft: '16px', margin: 0, fontSize: '11.5px', color: 'var(--text-active)', lineHeight: '1.7' }}>
+                        {expl.risks && expl.risks.map((rk, i) => (
+                          <li key={i}>{rk}</li>
+                        ))}
+                      </ul>
+                    </div>
+
                   </div>
 
-                </div>
+                  {/* Conclusion Box */}
+                  <div style={{ 
+                    backgroundColor: 'rgba(255,255,255,0.015)', 
+                    borderLeft: `3px solid ${statusColor}`, 
+                    borderRadius: '0 6px 6px 0', 
+                    padding: '12px 16px', 
+                    fontSize: '12px', 
+                    lineHeight: '1.6', 
+                    color: 'var(--text-active)' 
+                  }}>
+                    <div style={{ fontWeight: 'bold', color: statusColor, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Kesimpulan AI Trading Guardian
+                    </div>
+                    {expl.conclusion}
+                  </div>
 
-                {/* Conclusion Box */}
-                <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderLeft: '3px solid var(--primary-gold)', borderRadius: '0 6px 6px 0', padding: '12px 16px', fontSize: '12px', lineHeight: '1.6', color: 'var(--text-active)' }}>
-                  <div style={{ fontWeight: 'bold', color: 'var(--primary-gold)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kesimpulan AI Trading Guardian</div>
-                  {guardianData.conclusion}
                 </div>
 
               </div>
