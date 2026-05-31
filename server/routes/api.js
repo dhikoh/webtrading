@@ -58,7 +58,7 @@ router.get('/market/klines', async (req, res) => {
     const bybitInterval = intervalMap[interval] || '1';
     const category = marketType === 'futures' ? 'linear' : 'spot';
     
-    const url = `https://api.bytick.com/v5/market/kline?category=${category}&symbol=${symbol.toUpperCase()}&interval=${bybitInterval}&limit=${limit || 300}`;
+    const url = `https://api.bytick.com/v5/market/kline?category=${category}&symbol=${symbol.toUpperCase()}&interval=${bybitInterval}&limit=${limit || 1000}`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch from Bybit: ${response.statusText}`);

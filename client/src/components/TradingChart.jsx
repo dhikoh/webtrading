@@ -228,7 +228,7 @@ export default function TradingChart({ activeSymbol, marketType, socket, onPrice
     const loadHistory = async () => {
       try {
         const symbolUpper = activeSymbol.toUpperCase();
-        const url = `${API_URL}/api/market/klines?symbol=${symbolUpper}&marketType=${marketType}&interval=${activeInterval}&limit=300`;
+        const url = `${API_URL}/api/market/klines?symbol=${symbolUpper}&marketType=${marketType}&interval=${activeInterval}&limit=1000`;
         const res = await fetch(url);
         if (isCancelled) return;
         if (!res.ok) throw new Error('REST load failed');
